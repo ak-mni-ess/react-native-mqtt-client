@@ -4,5 +4,4 @@ target 'MqttClient' do
   use_frameworks!
 
   pod 'CocoaMQTT'
-  pod 'CocoaAsyncSocket'
 end
