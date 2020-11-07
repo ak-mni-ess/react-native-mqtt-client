@@ -1,0 +1,7 @@
+platform :ios, '8.0'
+
+target 'MqttClient' do
+  use_frameworks!
+
+  pod 'CocoaMQTT'
+end
