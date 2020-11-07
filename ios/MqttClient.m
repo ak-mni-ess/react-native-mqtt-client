@@ -2,8 +2,13 @@
 
 @interface RCT_EXTERN_MODULE(MqttClient, NSObject)
 
-RCT_EXTERN_METHOD(multiply:(float)a withB:(float)b
-                 withResolver:(RCTPromiseResolveBlock)resolve
-                 withRejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(connect:(NSDictionary*)options, errorCallback:(RCTResponseSenderBlock)errorCallback, successCallback:(RCTResponseSenderBlock)successCallback)
+
+RCT_EXTERN_METHOD(disconnect)
+
+- (void)invalidate {
+    [super invalidate]
+    [self disconnect]
+}
 
 @end

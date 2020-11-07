@@ -1,8 +1,15 @@
 @objc(MqttClient)
 class MqttClient: NSObject {
+    let logger = Logger()
 
-    @objc(multiply:withB:withResolver:withRejecter:)
-    func multiply(a: Float, b: Float, resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock) -> Void {
-        resolve(a*b)
+    @objc(connect:options:errorCallback:successCallback:)
+    func connect(options: NSDictionary, errorCallback: RCTResponseSenderBlock, successCallback: RCTResponseSenderBlock) -> Void
+    {
+        logger.debug("MqttConnector: connected")
+    }
+
+    @objc(disconnect)
+    func disconnect() -> Void {
+        logger.debug("MqttConnector: disconnected")
     }
 }
