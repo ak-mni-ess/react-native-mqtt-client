@@ -36,10 +36,10 @@ class RNMqttClient(reactContext: ReactApplicationContext)
         private val PROTOCOL: String = "ssl"
     }
 
-	private var client: MqttAndroidClient? = null
+    private var client: MqttAndroidClient? = null
 
-	init {
-		reactContext.addLifecycleEventListener(
+    init {
+        reactContext.addLifecycleEventListener(
             object: LifecycleEventListener {
                 override fun onHostResume() {
                     Log.d(NAME, "onHostResume")
@@ -54,159 +54,159 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                 }
             }
         )
-	}
+    }
 
-	override fun onCatalystInstanceDestroy() {
-		super.onCatalystInstanceDestroy()
-		Log.d(NAME, "onCatalystInstanceDestroy")
-		try {
-			this.disconnect()
-		} catch (e: MqttException) {
-			Log.e(NAME, "failed to disconnect", e)
-		}
-	}
+    override fun onCatalystInstanceDestroy() {
+        super.onCatalystInstanceDestroy()
+        Log.d(NAME, "onCatalystInstanceDestroy")
+        try {
+            this.disconnect()
+        } catch (e: MqttException) {
+            Log.e(NAME, "failed to disconnect", e)
+        }
+    }
 
-	override fun getName(): String = NAME
+    override fun getName(): String = NAME
 
-	/**
-	 * Connects to an MQTT broker.
-	 *
-	 * The following key-value pairs have to be specified in `options`.
-	 * - `caCert`: (`String`) Root CA certificate.
-	 *   A PEM formatted string.
-	 * - `cert`: (`String`) Certificate that has signed the private key.
-	 *   A PEM formatted string.
-	 * - `key`: (`String`) Private key that identifies the device.
-	 *   A PEM formatted string.
-	 * - `clientId`: (`String`) Client ID of the device.
-	 * - `host`: (`String`) Host name of the MQTT broker.
-	 * - `port`: (`int`) Port of the MQTT broker.
-	 */
-	@ReactMethod
-	fun connect(
-			options: ReadableMap?,
-			errorCallback: Callback?,
-			successCallback: Callback?
-	) {
-		// parses options
-		val parsedOptions: ConnectionOptions
-		try {
-			parsedOptions = ConnectionOptions.parseReadableMap(options)
-		} catch (e: IllegalArgumentException) {
-			Log.e(NAME, "invalid connection options", e)
-			errorCallback?.invoke(e.message)
-			return
-		}
-		// initializes a socket factory
-		val socketFactory: SSLSocketFactory
-		try {
-			socketFactory = SSLSocketFactoryUtil.createSocketFactory(
-				parsedOptions.caCert,
-				parsedOptions.cert,
-				parsedOptions.key
-			)
-		} catch (e: Exception) {
+    /**
+     * Connects to an MQTT broker.
+     *
+     * The following key-value pairs have to be specified in `options`.
+     * - `caCert`: (`String`) Root CA certificate.
+     *   A PEM formatted string.
+     * - `cert`: (`String`) Certificate that has signed the private key.
+     *   A PEM formatted string.
+     * - `key`: (`String`) Private key that identifies the device.
+     *   A PEM formatted string.
+     * - `clientId`: (`String`) Client ID of the device.
+     * - `host`: (`String`) Host name of the MQTT broker.
+     * - `port`: (`int`) Port of the MQTT broker.
+     */
+    @ReactMethod
+    fun connect(
+            options: ReadableMap?,
+            errorCallback: Callback?,
+            successCallback: Callback?
+    ) {
+        // parses options
+        val parsedOptions: ConnectionOptions
+        try {
+            parsedOptions = ConnectionOptions.parseReadableMap(options)
+        } catch (e: IllegalArgumentException) {
+            Log.e(NAME, "invalid connection options", e)
+            errorCallback?.invoke(e.message)
+            return
+        }
+        // initializes a socket factory
+        val socketFactory: SSLSocketFactory
+        try {
+            socketFactory = SSLSocketFactoryUtil.createSocketFactory(
+                parsedOptions.caCert,
+                parsedOptions.cert,
+                parsedOptions.key
+            )
+        } catch (e: Exception) {
             Log.e(NAME, "failed to initialize a socket factory", e)
             return
-		}
-		// initializes a client
-		try {
-			val brokerUri =
+        }
+        // initializes a client
+        try {
+            val brokerUri =
                 "$PROTOCOL://${parsedOptions.host}:${parsedOptions.port}"
             val client = MqttAndroidClient(
-				this.getReactApplicationContext().getBaseContext(),
-				brokerUri,
-				parsedOptions.clientId
-			)
+                this.getReactApplicationContext().getBaseContext(),
+                brokerUri,
+                parsedOptions.clientId
+            )
             this.client = client
-			client.setCallback(object: MqttCallbackExtended {
-				override fun connectComplete(
+            client.setCallback(object: MqttCallbackExtended {
+                override fun connectComplete(
                         reconnect: Boolean,
                         serverURI: String
                 ) {
-					Log.d(NAME, "connectComplete")
-				}
+                    Log.d(NAME, "connectComplete")
+                }
 
-				override fun connectionLost(cause: Throwable) {
-					Log.d(NAME, "connectionLost", cause)
-				}
+                override fun connectionLost(cause: Throwable) {
+                    Log.d(NAME, "connectionLost", cause)
+                }
 
-				override fun deliveryComplete(token: IMqttDeliveryToken) {
-					Log.d(NAME, "deliveryComplete")
-				}
+                override fun deliveryComplete(token: IMqttDeliveryToken) {
+                    Log.d(NAME, "deliveryComplete")
+                }
 
-				override fun messageArrived(
+                override fun messageArrived(
                         topic: String,
                         message: MqttMessage
                 ) {
-					Log.d(NAME, "messageArrived")
-				}
-			})
-			client.setTraceEnabled(true)
-			client.setTraceCallback(object: MqttTraceHandler {
-				override fun traceDebug(source: String, message: String) {
-					Log.d("$NAME.trace", "$message ($source)")
-				}
+                    Log.d(NAME, "messageArrived")
+                }
+            })
+            client.setTraceEnabled(true)
+            client.setTraceCallback(object: MqttTraceHandler {
+                override fun traceDebug(source: String, message: String) {
+                    Log.d("$NAME.trace", "$message ($source)")
+                }
 
-				override fun traceError(source: String, message: String) {
-					Log.e("$NAME.trace", "$message ($source)")
-				}
+                override fun traceError(source: String, message: String) {
+                    Log.e("$NAME.trace", "$message ($source)")
+                }
 
-				override fun traceException(
+                override fun traceException(
                         source: String,
                         message: String,
                         e: Exception)
                 {
-					Log.e("$NAME.trace", "$message ($source)", e)
-				}
-			})
-			val connectOptions = MqttConnectOptions()
-			connectOptions.setSocketFactory(socketFactory)
-			connectOptions.setCleanSession(true)
-			Log.d(NAME, "connecting to the broker")
-			val token = client.connect(connectOptions)
-			token.setActionCallback(object: IMqttActionListener {
-				override fun onSuccess(asyncActionToken: IMqttToken) {
-					Log.d(NAME, "connected, token: ${asyncActionToken}")
+                    Log.e("$NAME.trace", "$message ($source)", e)
+                }
+            })
+            val connectOptions = MqttConnectOptions()
+            connectOptions.setSocketFactory(socketFactory)
+            connectOptions.setCleanSession(true)
+            Log.d(NAME, "connecting to the broker")
+            val token = client.connect(connectOptions)
+            token.setActionCallback(object: IMqttActionListener {
+                override fun onSuccess(asyncActionToken: IMqttToken) {
+                    Log.d(NAME, "connected, token: ${asyncActionToken}")
                     successCallback?.invoke(
                         "connected, token: ${asyncActionToken}"
                     )
-					try {
-						this@RNMqttClient.subscribe()
-					} catch (e: MqttException) {
-						Log.e(NAME, "failed to subscribe", e)
-					}
-					try {
-						this@RNMqttClient.publish()
-					} catch (e: MqttException) {
-						Log.e(NAME, "failed to publish", e)
-					}
-				}
+                    try {
+                        this@RNMqttClient.subscribe()
+                    } catch (e: MqttException) {
+                        Log.e(NAME, "failed to subscribe", e)
+                    }
+                    try {
+                        this@RNMqttClient.publish()
+                    } catch (e: MqttException) {
+                        Log.e(NAME, "failed to publish", e)
+                    }
+                }
 
-				override fun onFailure(
+                override fun onFailure(
                         asyncActionToken: IMqttToken,
                         exception: Throwable
-				) {
-					Log.e(
-						NAME,
-						"failed to connect, token: ${asyncActionToken}",
-						exception
-					)
+                ) {
+                    Log.e(
+                        NAME,
+                        "failed to connect, token: ${asyncActionToken}",
+                        exception
+                    )
                     errorCallback?.invoke(
                         "failed to connect, token: ${asyncActionToken}"
                     )
-				}
-			})
-		} catch (e: MqttException) {
-			Log.e(NAME, "failed to connect", e)
+                }
+            })
+        } catch (e: MqttException) {
+            Log.e(NAME, "failed to connect", e)
             return
-		}
-	}
+        }
+    }
 
     @ReactMethod
-	fun disconnect() {
+    fun disconnect() {
         val client = this.client
-		if (client != null) {
+        if (client != null) {
             try {
                 val token = client.disconnect()
                 token.setActionCallback(object : IMqttActionListener {
@@ -229,70 +229,70 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                 Log.e(NAME, "failed to disconnect", e)
                 return
             }
-		}
-	}
+        }
+    }
 
     // @throws MqttException
-	private fun subscribe() {
+    private fun subscribe() {
         val client = this.client
         if (client == null) {
             return
         }
-		val token = client.subscribe(
-			"sample-topic/test",
-			1 // qos
-		)
-		token.setActionCallback(object : IMqttActionListener {
-			override fun onSuccess(asyncActionToken: IMqttToken) {
-				Log.d(NAME, "subscribed, token: ${asyncActionToken}")
-			}
+        val token = client.subscribe(
+            "sample-topic/test",
+            1 // qos
+        )
+        token.setActionCallback(object : IMqttActionListener {
+            override fun onSuccess(asyncActionToken: IMqttToken) {
+                Log.d(NAME, "subscribed, token: ${asyncActionToken}")
+            }
 
-			override fun onFailure(
-					asyncActionToken: IMqttToken,
-					cause: Throwable
-			) {
-				Log.e(
-					NAME,
-					"failed to subscribe, token: ${asyncActionToken}",
-					cause
-				)
-			}
-		})
-	}
+            override fun onFailure(
+                    asyncActionToken: IMqttToken,
+                    cause: Throwable
+            ) {
+                Log.e(
+                    NAME,
+                    "failed to subscribe, token: ${asyncActionToken}",
+                    cause
+                )
+            }
+        })
+    }
 
     // @throws MqttException
-	private fun publish() {
+    private fun publish() {
         val client = this.client
         if (client == null) {
             return
         }
-		val payload = "{\"co2\":1000}".toByteArray()
-		val token = client.publish(
-			"sample-topic/test",
-			payload,
-			1, // qos
-			false // retained
-		)
-		token.setActionCallback(object : IMqttActionListener {
-			override fun onSuccess(asyncActionToken: IMqttToken) {
-				Log.d(NAME, "published, token: ${asyncActionToken}")
-			}
+        val payload = "{\"co2\":1000}".toByteArray()
+        val token = client.publish(
+            "sample-topic/test",
+            payload,
+            1, // qos
+            false // retained
+        )
+        token.setActionCallback(object : IMqttActionListener {
+            override fun onSuccess(asyncActionToken: IMqttToken) {
+                Log.d(NAME, "published, token: ${asyncActionToken}")
+            }
 
-			override fun onFailure(
-					asyncActionToken: IMqttToken,
-					cause: Throwable
-			) {
-				Log.e(
-					NAME,
-					"failed to publish, token: ${asyncActionToken}",
-					cause
-				)
-			}
-		})
-	}
+            override fun onFailure(
+                    asyncActionToken: IMqttToken,
+                    cause: Throwable
+            ) {
+                Log.e(
+                    NAME,
+                    "failed to publish, token: ${asyncActionToken}",
+                    cause
+                )
+            }
+        })
+    }
 
-	/** Options for connection. */
-	private class ConnectionOptions(
+    /** Options for connection. */
+    private class ConnectionOptions(
         val caCert: String,
         val cert: String,
         val key: String,
@@ -346,5 +346,5 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                 return options.getInt(key)
             }
         }
-	}
+    }
 }
