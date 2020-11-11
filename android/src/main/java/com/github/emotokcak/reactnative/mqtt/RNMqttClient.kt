@@ -307,43 +307,13 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                     throw IllegalArgumentException("options must be specified")
                 }
                 return ConnectionOptions(
-                    caCert=getRequiredString(options, "caCert"),
-                    cert=getRequiredString(options, "cert"),
-                    key=getRequiredString(options, "key"),
-                    host=getRequiredString(options, "host"),
-                    port=getRequiredInt(options, "port"),
-                    clientId=getRequiredString(options, "clientId")
+                    caCert=options.getRequiredString("caCert"),
+                    cert=options.getRequiredString("cert"),
+                    key=options.getRequiredString("key"),
+                    host=options.getRequiredString("host"),
+                    port=options.getRequiredInt("port"),
+                    clientId=options.getRequiredString("clientId")
                 )
-            }
-
-            fun getRequiredString(options: ReadableMap, key: String): String {
-                if (!options.hasKey(key)) {
-                    throw IllegalArgumentException(
-                        "options.$key must be specified"
-                    )
-                }
-                if (options.getType(key) != ReadableType.String) {
-                    throw IllegalArgumentException(
-                        "options.$key must be a string" +
-                            " but ${options.getType(key)} was given"
-                    )
-                }
-                return options.getString(key)!! // should not be null
-            }
-
-            fun getRequiredInt(options: ReadableMap, key: String): Int {
-                if (!options.hasKey(key)) {
-                    throw IllegalArgumentException(
-                        "options.$key must be specified"
-                    )
-                }
-                if (options.getType(key) != ReadableType.Number) {
-                    throw IllegalArgumentException(
-                        "options.$key must be an int" +
-                            " but ${options.getType(key)} was given"
-                    )
-                }
-                return options.getInt(key)
             }
         }
     }
