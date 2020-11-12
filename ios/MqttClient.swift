@@ -178,6 +178,17 @@ class MqttClient: NSObject, RCTBridgeModule, RCTInvalidating {
         os_log("MqttConnector: invalidating")
         self.disconnect()
     }
+    
+    @objc(publish:payload:errorCallback:)
+    func publish(topic: String, payload: String, errorCallback: RCTResponseSenderBlock) -> Void
+    {
+        os_log("MqttConnector: publishing to %s", topic)
+        guard let client = self.client else {
+            errorCallback(["no MQTT connection"])
+            return
+        }
+        client.publish(CocoaMQTTMessage(topic: topic, string: payload))
+    }
 }
 
 extension MqttClient : CocoaMQTTDelegate {
@@ -206,7 +217,6 @@ extension MqttClient : CocoaMQTTDelegate {
 
     func mqtt(_ mqtt: CocoaMQTT, didSubscribeTopic topics: [String]) {
         os_log("MqttClient: didSubscribeTopic=%s", "\(topics)")
-        mqtt.publish(CocoaMQTTMessage(topic:"sample-topic/test", string: "{\"co2\":1000}"))
     }
 
     func mqtt(_ mqtt: CocoaMQTT, didUnsubscribeTopic topic: String) {

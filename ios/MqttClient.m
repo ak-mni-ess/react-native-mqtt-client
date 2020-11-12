@@ -6,4 +6,6 @@ RCT_EXTERN_METHOD(connect:(NSDictionary*)options errorCallback:(RCTResponseSende
 
 RCT_EXTERN_METHOD(disconnect)
 
+RCT_EXTERN_METHOD(publish:(NSString*)topic payload:(NSString*)payload errorCallback:(RCTResponseSenderBlock)errorCallback)
+
 @end
