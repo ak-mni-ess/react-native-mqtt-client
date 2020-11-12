@@ -81,10 +81,23 @@ class RNMqttClient(reactContext: ReactApplicationContext)
      * - `clientId`: (`String`) Client ID of the device.
      * - `host`: (`String`) Host name of the MQTT broker.
      * - `port`: (`int`) Port of the MQTT broker.
+     *
+     * @param options
+     *
+     *   Options for connection.
+     *   Please see above.
+     *
+     * @param errorCallback
+     *
+     *   Called when an error has occurred.
+     *
+     * @param successCallback
+     *
+     *   Called when connection has been established.
      */
     @ReactMethod
     fun connect(
-            options: ReadableMap?,
+            options: ReadableMap,
             errorCallback: Callback?,
             successCallback: Callback?
     ) {
@@ -176,11 +189,6 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                     } catch (e: MqttException) {
                         Log.e(NAME, "failed to subscribe", e)
                     }
-                    try {
-                        this@RNMqttClient.publish()
-                    } catch (e: MqttException) {
-                        Log.e(NAME, "failed to publish", e)
-                    }
                 }
 
                 override fun onFailure(
@@ -203,32 +211,40 @@ class RNMqttClient(reactContext: ReactApplicationContext)
         }
     }
 
+    /**
+     * Disconnects from the MQTT broker.
+     *
+     * Does nothing if there is no MQTT connection.
+     */
     @ReactMethod
     fun disconnect() {
         val client = this.client
-        if (client != null) {
-            try {
-                val token = client.disconnect()
-                token.setActionCallback(object : IMqttActionListener {
-                    override fun onSuccess(asyncActionToken: IMqttToken) {
-                        Log.d(NAME, "disconnected, token: ${asyncActionToken}")
-                    }
+        if (client == null) {
+            Log.w(NAME, "no MQTT connection")
+            return
+        }
+        try {
+            val token = client.disconnect()
+            token.setActionCallback(object : IMqttActionListener {
+                override fun onSuccess(asyncActionToken: IMqttToken) {
+                    Log.d(NAME, "disconnected, token: ${asyncActionToken}")
+                    this@RNMqttClient.client = null
+                }
 
-                    override fun onFailure(
-                            asyncActionToken: IMqttToken,
-                            cause: Throwable
-                    ) {
-                        Log.e(
-                            NAME,
-                            "failed to disconnect, token: ${asyncActionToken}",
-                            cause
-                        )
-                    }
-                })
-            } catch (e: MqttException) {
-                Log.e(NAME, "failed to disconnect", e)
-                return
-            }
+                override fun onFailure(
+                        asyncActionToken: IMqttToken,
+                        cause: Throwable
+                ) {
+                    Log.e(
+                        NAME,
+                        "failed to disconnect, token: ${asyncActionToken}",
+                        cause
+                    )
+                }
+            })
+        } catch (e: MqttException) {
+            Log.e(NAME, "failed to disconnect", e)
+            return
         }
     }
 
@@ -260,18 +276,36 @@ class RNMqttClient(reactContext: ReactApplicationContext)
         })
     }
 
-    // @throws MqttException
-    private fun publish() {
+
+    /**
+     * Publishes given data to a specified topic.
+     *
+     * Does nothing if there is no MQTT connection.
+     *
+     * @param topic
+     *
+     *   Topic where to publish `payload`.
+     *
+     * @param payload
+     *
+     *   Payload to be published.
+     *
+     * @param errorCallback
+     *
+     *   Called when an error has occurred.
+     */
+    @ReactMethod
+    fun publish(topic: String, payload: String, errorCallback: Callback?) {
         val client = this.client
         if (client == null) {
+            Log.w(NAME, "failed to publish. no MQTT connection")
             return
         }
-        val payload = "{\"co2\":1000}".toByteArray()
         val token = client.publish(
-            "sample-topic/test",
-            payload,
+            topic,
+            payload.toByteArray(),
             1, // qos
-            false // retained
+            false // not retained
         )
         token.setActionCallback(object : IMqttActionListener {
             override fun onSuccess(asyncActionToken: IMqttToken) {
@@ -287,11 +321,12 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                     "failed to publish, token: ${asyncActionToken}",
                     cause
                 )
+                errorCallback?.invoke("failed to publish to $topic")
             }
         })
     }
 
-    /** Options for connection. */
+    // Options for connection.
     private class ConnectionOptions(
         val caCert: String,
         val cert: String,
@@ -301,11 +336,8 @@ class RNMqttClient(reactContext: ReactApplicationContext)
         val clientId: String
     ) {
         companion object {
-            /** Parses a given object from JavaScript. */
-            fun parseReadableMap(options: ReadableMap?): ConnectionOptions {
-                if (options == null) {
-                    throw IllegalArgumentException("options must be specified")
-                }
+            // Parses a given object from JavaScript.
+            fun parseReadableMap(options: ReadableMap): ConnectionOptions {
                 return ConnectionOptions(
                     caCert=options.getRequiredString("caCert"),
                     cert=options.getRequiredString("cert"),
