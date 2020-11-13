@@ -11,9 +11,9 @@ import javax.net.ssl.TrustManagerFactory
 
 /** Utility to configures an `SSLSocketFactory`. */
 object SSLSocketFactoryUtil {
-    private val SSL_PROTOCOL: String = "TLSv1.2"
+    private const val SSL_PROTOCOL: String = "TLSv1.2"
 
-    private val PASSWORD: String = ""
+    private const val PASSWORD: String = ""
 
     /**
      * Creates an `SSLSocketFactory` with given certificates.
@@ -29,6 +29,10 @@ object SSLSocketFactoryUtil {
      * @param keyPem
      *
      *   PEM representation of a private key.
+     *
+     * @return
+     *
+     *   `SSLSocketFactory` created with `caCertPem`, `certPem` and `keyPem`.
      *
      * @throws CertificateException
      *
@@ -51,7 +55,6 @@ object SSLSocketFactoryUtil {
             keyPem: String
     ): SSLSocketFactory {
         // Reference: https://gist.github.com/sharonbn/4104301
-        val sslContext = SSLContext.getInstance(SSL_PROTOCOL)
         val rootCaCert = PEMLoader.loadX509CertificateFromString(caCertPem)
         val clientCert = PEMLoader.loadX509CertificateFromString(certPem)
         val clientKey = PEMLoader.loadPrivateKeyFromString(keyPem)
@@ -67,14 +70,63 @@ object SSLSocketFactoryUtil {
             PASSWORD.toCharArray(),
             arrayOf(clientCert)
         )
-        val trustManagerFactory = TrustManagerFactory.getInstance(  
+        return this.createSocketFactoryFromKeyStore(androidKeyStore)
+    }
+
+    /**
+     * Creates an `SSLSocketFactory` from the Android key store.
+     *
+     * @return
+     *
+     *   `SSLSocketFactory` created from the Android key store.
+     *
+     * @throws KeyManagementException
+     *
+     * @throws KeyStoreException
+     *
+     * @throws NoSuchAlgorithmException
+     *
+     * @throws UnrecoverableKeyException
+     */
+    @JvmStatic
+    fun createSocketFactoryFromAndroidKeyStore(): SSLSocketFactory {
+        val androidKeyStore = KeyStore.getInstance("AndroidKeyStore")
+        androidKeyStore.load(null)
+        return this.createSocketFactoryFromKeyStore(androidKeyStore)
+    }
+
+    /**
+     * Creates an `SSLSocketFactory` from a given key store.
+     *
+     * @param keyStore
+     *
+     *   `KeyStore` containing a necessary CA certificate, certificate and
+     *   private key.
+     *
+     * @return
+     *
+     *   `SSLSocketFactory` created from `keyStore`.
+     *
+     * @throws KeyManagementException
+     *
+     * @throws KeyStoreException
+     *
+     * @throws NoSuchAlgorithmException
+     *
+     * @throws UnrecoverableKeyException
+     */
+    private fun createSocketFactoryFromKeyStore(keyStore: KeyStore):
+            SSLSocketFactory
+    {
+        val sslContext = SSLContext.getInstance(SSL_PROTOCOL)
+        val trustManagerFactory = TrustManagerFactory.getInstance(
             TrustManagerFactory.getDefaultAlgorithm()
         )
-        trustManagerFactory.init(androidKeyStore)
+        trustManagerFactory.init(keyStore)
         val keyManagerFactory = KeyManagerFactory.getInstance(
             KeyManagerFactory.getDefaultAlgorithm()
         )
-        keyManagerFactory.init(androidKeyStore, PASSWORD.toCharArray())
+        keyManagerFactory.init(keyStore, PASSWORD.toCharArray())
         sslContext.init(
             keyManagerFactory.getKeyManagers(),
             trustManagerFactory.getTrustManagers(),

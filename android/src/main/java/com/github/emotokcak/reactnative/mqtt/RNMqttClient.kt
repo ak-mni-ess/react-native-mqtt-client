@@ -3,6 +3,7 @@ package com.github.emotokcak.reactnative.mqtt
 import android.util.Log
 import com.facebook.react.bridge.Callback
 import com.facebook.react.bridge.LifecycleEventListener
+import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -31,10 +32,12 @@ class RNMqttClient(reactContext: ReactApplicationContext)
         : ReactContextBaseJavaModule(reactContext)
 {
     companion object {
-        private val NAME: String = "MqttClient"
+        private const val NAME: String = "MqttClient"
 
-        private val PROTOCOL: String = "ssl"
+        private const val PROTOCOL: String = "ssl"
     }
+
+    private var socketFactory: SSLSocketFactory? = null
 
     private var client: MqttAndroidClient? = null
 
@@ -69,22 +72,76 @@ class RNMqttClient(reactContext: ReactApplicationContext)
     override fun getName(): String = NAME
 
     /**
+     * Sets the identity for connection.
+     *
+     * The following key-value pairs have to be specified in `params`.
+     * - `caCertPem`: {`String`} PEM representation of a root CA certificate.
+     * - `certPem`: {`String`} PEM representation of a certificate.
+     * - `keyPem`: {`String`} PEM representation of a private key.
+     *
+     * If there is already connection to an MQTT broker, this new identity
+     * won't affect it.
+     *
+     * @param params
+     *
+     *   Parameters constituting an identity.
+     *
+     * @param promise
+     *
+     *   Promise that is resolved when the identity is set.
+     */
+    @Synchronized
+    @ReactMethod
+    fun setIdentity(params: ReadableMap, promise: Promise) {
+        try {
+            this.socketFactory = SSLSocketFactoryUtil.createSocketFactory(
+                params.getRequiredString("caCertPem"),
+                params.getRequiredString("certPem"),
+                params.getRequiredString("keyPem")
+            )
+            promise.resolve(null)
+            return
+        } catch (e: IllegalArgumentException) {
+            Log.e(NAME, "invalid identity parameters", e)
+            promise.reject("RANGE_ERROR", e)
+            return
+        } catch (e: Exception) {
+            Log.e(NAME, "failed to create an SSLSocketFactory", e)
+            promise.reject("INVALID_IDENTITY", e)
+            return
+        }
+    }
+
+    /**
+     * Returns a socket factory.
+     *
+     * @return
+     *
+     *   `SSLSocketFactory` to connect to an MQTT broker.
+     *   `null` if no socket factory is available.
+     */
+    @Synchronized
+    private fun getSocketFactory(): SSLSocketFactory? {
+        try {
+            return this.socketFactory ?:
+                SSLSocketFactoryUtil.createSocketFactoryFromAndroidKeyStore()
+        } catch (e: Exception) {
+            Log.e(NAME, "failed to obtain an SSLSocketFactory", e)
+            return null
+        }
+    }
+
+    /**
      * Connects to an MQTT broker.
      *
-     * The following key-value pairs have to be specified in `options`.
-     * - `caCert`: (`String`) Root CA certificate.
-     *   A PEM formatted string.
-     * - `cert`: (`String`) Certificate that has signed the private key.
-     *   A PEM formatted string.
-     * - `key`: (`String`) Private key that identifies the device.
-     *   A PEM formatted string.
-     * - `clientId`: (`String`) Client ID of the device.
-     * - `host`: (`String`) Host name of the MQTT broker.
-     * - `port`: (`int`) Port of the MQTT broker.
+     * The following key-value pairs have to be specified in `params`.
+     * - `clientId`: {`String`} Client ID of the device.
+     * - `host`: {`String`} Host name of the MQTT broker.
+     * - `port`: {`int`} Port of the MQTT broker.
      *
-     * @param options
+     * @param params
      *
-     *   Options for connection.
+     *   Parameters for connection.
      *   Please see above.
      *
      * @param errorCallback
@@ -97,39 +154,33 @@ class RNMqttClient(reactContext: ReactApplicationContext)
      */
     @ReactMethod
     fun connect(
-            options: ReadableMap,
+            params: ReadableMap,
             errorCallback: Callback?,
             successCallback: Callback?
     ) {
-        // parses options
-        val parsedOptions: ConnectionOptions
+        // parses parameters
+        val parsedParams: ConnectionParameters
         try {
-            parsedOptions = ConnectionOptions.parseReadableMap(options)
+            parsedParams = ConnectionParameters.parseReadableMap(params)
         } catch (e: IllegalArgumentException) {
-            Log.e(NAME, "invalid connection options", e)
+            Log.e(NAME, "invalid connection parameters", e)
             errorCallback?.invoke(e.message)
             return
         }
-        // initializes a socket factory
-        val socketFactory: SSLSocketFactory
-        try {
-            socketFactory = SSLSocketFactoryUtil.createSocketFactory(
-                parsedOptions.caCert,
-                parsedOptions.cert,
-                parsedOptions.key
-            )
-        } catch (e: Exception) {
-            Log.e(NAME, "failed to initialize a socket factory", e)
+        // obtains a socket factory
+        val socketFactory = this.getSocketFactory()
+        if (socketFactory == null) {
+            errorCallback?.invoke("no SSLSocketFactory is available")
             return
         }
         // initializes a client
         try {
             val brokerUri =
-                "$PROTOCOL://${parsedOptions.host}:${parsedOptions.port}"
+                "$PROTOCOL://${parsedParams.host}:${parsedParams.port}"
             val client = MqttAndroidClient(
                 this.getReactApplicationContext().getBaseContext(),
                 brokerUri,
-                parsedOptions.clientId
+                parsedParams.clientId
             )
             this.client = client
             client.setCallback(object: MqttCallbackExtended {
@@ -326,25 +377,19 @@ class RNMqttClient(reactContext: ReactApplicationContext)
         })
     }
 
-    // Options for connection.
-    private class ConnectionOptions(
-        val caCert: String,
-        val cert: String,
-        val key: String,
+    // Parameters for connection.
+    private class ConnectionParameters(
         val host: String,
         val port: Int,
         val clientId: String
     ) {
         companion object {
             // Parses a given object from JavaScript.
-            fun parseReadableMap(options: ReadableMap): ConnectionOptions {
-                return ConnectionOptions(
-                    caCert=options.getRequiredString("caCert"),
-                    cert=options.getRequiredString("cert"),
-                    key=options.getRequiredString("key"),
-                    host=options.getRequiredString("host"),
-                    port=options.getRequiredInt("port"),
-                    clientId=options.getRequiredString("clientId")
+            fun parseReadableMap(params: ReadableMap): ConnectionParameters {
+                return ConnectionParameters(
+                    host=params.getRequiredString("host"),
+                    port=params.getRequiredInt("port"),
+                    clientId=params.getRequiredString("clientId")
                 )
             }
         }
