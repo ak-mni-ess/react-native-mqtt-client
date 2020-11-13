@@ -55,13 +55,13 @@ object SSLSocketFactoryUtil {
         val rootCaCert = PEMLoader.loadX509CertificateFromString(caCertPem)
         val clientCert = PEMLoader.loadX509CertificateFromString(certPem)
         val clientKey = PEMLoader.loadPrivateKeyFromString(keyPem)
-        val rootCaKeyStore = KeyStore.getInstance(KeyStore.getDefaultType())
-        rootCaKeyStore.load(null, null)
-        rootCaKeyStore.setCertificateEntry("ca-certificate", rootCaCert)
-        val clientKeyStore = KeyStore.getInstance(KeyStore.getDefaultType())
-        clientKeyStore.load(null, null)
-        clientKeyStore.setCertificateEntry("certificate", clientCert)
-        clientKeyStore.setKeyEntry(
+        // please refer to the following section for AndroidKeyStore,
+        // https://developer.android.com/training/articles/keystore#UsingAndroidKeyStore
+        val androidKeyStore = KeyStore.getInstance("AndroidKeyStore")
+        androidKeyStore.load(null)
+        androidKeyStore.setCertificateEntry("ca-certificate", rootCaCert)
+        androidKeyStore.setCertificateEntry("certificate", clientCert)
+        androidKeyStore.setKeyEntry(
             "private-key",
             clientKey,
             PASSWORD.toCharArray(),
@@ -70,11 +70,11 @@ object SSLSocketFactoryUtil {
         val trustManagerFactory = TrustManagerFactory.getInstance(  
             TrustManagerFactory.getDefaultAlgorithm()
         )
-        trustManagerFactory.init(rootCaKeyStore)
+        trustManagerFactory.init(androidKeyStore)
         val keyManagerFactory = KeyManagerFactory.getInstance(
             KeyManagerFactory.getDefaultAlgorithm()
         )
-        keyManagerFactory.init(clientKeyStore, PASSWORD.toCharArray())
+        keyManagerFactory.init(androidKeyStore, PASSWORD.toCharArray())
         sslContext.init(
             keyManagerFactory.getKeyManagers(),
             trustManagerFactory.getTrustManagers(),
