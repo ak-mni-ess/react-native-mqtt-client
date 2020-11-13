@@ -32,6 +32,9 @@ func loadPrivateKey(fromPem: String) -> SecKey? {
 class MqttClient: NSObject, RCTBridgeModule, RCTInvalidating {
     static let APPLICATION_TAG = "com.github.emoto-kc-ak.react-native-mqtt-client"
 
+    // certificates for SSL connection.
+    var certArray: CFArray?
+
     var client: CocoaMQTT?
 
     static func moduleName() -> String! {
@@ -42,25 +45,22 @@ class MqttClient: NSObject, RCTBridgeModule, RCTInvalidating {
         return false
     }
 
-    @objc(connect:errorCallback:successCallback:)
-    func connect(options: NSDictionary, errorCallback: RCTResponseSenderBlock, successCallback: RCTResponseSenderBlock) -> Void
+    @objc(setIdentity:resolve:reject:)
+    func setIdentity(params: NSDictionary, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) -> Void
     {
-        let caCertPem: String = RCTConvert.nsString(options["caCert"])
-        let certPem: String = RCTConvert.nsString(options["cert"])
-        let keyPem: String = RCTConvert.nsString(options["key"])
-        let host: String = RCTConvert.nsString(options["host"])
-        let port: Int = RCTConvert.nsInteger(options["port"])
-        let clientId: String = RCTConvert.nsString(options["clientId"])
+        let caCertPem: String = RCTConvert.nsString(params["caCertPem"])
+        let certPem: String = RCTConvert.nsString(params["certPem"])
+        let keyPem: String = RCTConvert.nsString(params["keyPem"])
         guard let caCert = loadX509Certificate(fromPem: caCertPem) else {
-            errorCallback(["invalid CA certificate"])
+            reject("RANGE_ERROR", "invalid CA certificate", nil)
             return
         }
         guard let cert = loadX509Certificate(fromPem: certPem) else {
-            errorCallback(["invalid certificate"])
+            reject("RANGE_ERROR", "invalid certificate", nil)
             return
         }
         guard let key = loadPrivateKey(fromPem: keyPem) else {
-            errorCallback(["invalid private key"])
+            reject("RANGE_ERROR", "invalid private key", nil)
             return
         }
         // adds the private key to the keychain
@@ -72,32 +72,9 @@ class MqttClient: NSObject, RCTBridgeModule, RCTInvalidating {
         ]
         var err = SecItemAdd(addKeyAttrs as CFDictionary, nil)
         guard err == errSecSuccess || err == errSecDuplicateItem else {
-            errorCallback(["failed to add the private key to the keychain: " + String(err)])
+            reject("INVALID_IDENTITY", "failed to add the private key to the keychain: \(err)", nil)
             return
         }
-        // checks the private key
-        let queryKeyAttrs: [String: Any] = [
-            kSecClass as String: kSecClassKey,
-            kSecAttrApplicationTag as String: Self.APPLICATION_TAG,
-            kSecReturnAttributes as String: true,
-            kSecReturnRef as String: true
-        ]
-        var queryKeyResult: CFTypeRef?
-        err = SecItemCopyMatching(queryKeyAttrs as CFDictionary, &queryKeyResult)
-        guard err == errSecSuccess else {
-            errorCallback(["failed to query the keychain for the private key" + String(err)])
-            return
-        }
-        guard let keyAttrMap = queryKeyResult as? [String: Any] else {
-            errorCallback(["failed to extract private key query results"])
-            return
-        }
-        guard let appLabel = keyAttrMap[kSecAttrApplicationLabel as String] as? Data else
-        {
-            errorCallback(["failed to extract the public key hash of the private key: " + (kSecAttrApplicationLabel as String)])
-            return
-        }
-        os_log("MqttClient: public key hash=%s", appLabel.base64EncodedString())
         // adds the certificate to the keychain
         let addCertAttrs: [String: Any] = [
             kSecClass as String: kSecClassCertificate,
@@ -106,32 +83,9 @@ class MqttClient: NSObject, RCTBridgeModule, RCTInvalidating {
         ]
         err = SecItemAdd(addCertAttrs as CFDictionary, nil)
         guard err == errSecSuccess || err == errSecDuplicateItem else {
-            errorCallback(["failed to add the certificate to the keychain" + String(err)])
+            reject("INVALID_IDENTITY", "failed to add the certificate to the keychain: \(err)", nil)
             return
         }
-        // checks the certificate
-        let queryCertAttrs: [String: Any] = [
-            kSecClass as String: kSecClassCertificate,
-            kSecAttrLabel as String: "Certificate for an MQTT client",
-            kSecReturnAttributes as String: true,
-            kSecReturnRef as String: true
-        ]
-        var queryCertResult: CFTypeRef?
-        err = SecItemCopyMatching(queryCertAttrs as CFDictionary, &queryCertResult)
-        guard err == errSecSuccess else {
-            errorCallback(["failed to query the keychain for the certificate: " + String(err)])
-            return
-        }
-        guard let certAttrMap = queryCertResult as? [String: Any] else {
-            errorCallback(["failed to extract certificate query results"])
-            return
-        }
-        guard let pubKey = certAttrMap[kSecAttrPublicKeyHash as String] as? Data else
-        {
-            errorCallback(["failed to extract the public key has of the certificate" + (kSecAttrPublicKeyHash as String)])
-            return
-        }
-        os_log("MqttConnector: public key hash=%s", pubKey.base64EncodedString())
         // obtains the identity
         let queryIdentityAttrs: [String: Any] = [
             kSecClass as String: kSecClassIdentity,
@@ -139,19 +93,31 @@ class MqttClient: NSObject, RCTBridgeModule, RCTInvalidating {
             kSecReturnRef as String: true
         ]
         let cfDict = queryIdentityAttrs as CFDictionary
-        var identityRef: CFTypeRef?
-        err = SecItemCopyMatching(cfDict, &identityRef)
+        var identity: CFTypeRef?
+        err = SecItemCopyMatching(cfDict, &identity)
         guard err == errSecSuccess else {
-            errorCallback(["failed to query the keychain for the identity: " + String(err)])
+            reject("INVALID_IDENTITY", "failed to query the keychain for the identity: \(err)", nil)
             return
         }
-        guard CFGetTypeID(identityRef) == SecIdentityGetTypeID() else {
-            errorCallback(["failed to query the keychain for the identity: type ID mismatch"])
+        guard CFGetTypeID(identity) == SecIdentityGetTypeID() else {
+            reject("INVALID_IDENTITY", "failed to query the keychain for the identity: type ID mismatch", nil)
             return
         }
-        let identity = identityRef as! SecIdentity
-        // configures an MQTT client
-        let certArray = [identity, caCert] as CFArray
+        // remembers the identity and the CA certificate
+        self.certArray = [identity!, caCert] as CFArray
+        resolve(nil)
+    }
+
+    @objc(connect:errorCallback:successCallback:)
+    func connect(params: NSDictionary, errorCallback: RCTResponseSenderBlock?, successCallback: RCTResponseSenderBlock?) -> Void
+    {
+        guard let certArray = self.certArray else {
+            errorCallback?(["no identity is set"])
+            return
+        }
+        let host: String = RCTConvert.nsString(params["host"])
+        let port: Int = RCTConvert.nsInteger(params["port"])
+        let clientId: String = RCTConvert.nsString(params["clientId"])
         self.client = CocoaMQTT(clientID: clientId, host: host, port: UInt16(port))
         self.client!.username = ""
         self.client!.password = ""
@@ -164,7 +130,7 @@ class MqttClient: NSObject, RCTBridgeModule, RCTInvalidating {
         self.client!.keepAlive = 60
         self.client!.delegate = self
         _ = self.client!.connect()
-        os_log("MqttConnector: connected")
+        successCallback?(["connecting to the MQTT broker"])
     }
 
     @objc(disconnect)
@@ -194,7 +160,6 @@ class MqttClient: NSObject, RCTBridgeModule, RCTInvalidating {
 extension MqttClient : CocoaMQTTDelegate {
     func mqtt(_ mqtt: CocoaMQTT, didConnectAck ack: CocoaMQTTConnAck) {
         os_log("MqttClient: didConnectAck=%s", "\(ack)")
-        mqtt.subscribe("sample-topic/test", qos: CocoaMQTTQOS.qos1)
     }
 
     func mqtt(_ mqtt: CocoaMQTT, didStateChangeTo state: CocoaMQTTConnState) {

@@ -2,7 +2,9 @@
 
 @interface RCT_EXTERN_MODULE(MqttClient, NSObject)
 
-RCT_EXTERN_METHOD(connect:(NSDictionary*)options errorCallback:(RCTResponseSenderBlock)errorCallback successCallback:(RCTResponseSenderBlock)successCallback)
+RCT_EXTERN_METHOD(setIdentity:(NSDictionary*)params resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(connect:(NSDictionary*)params errorCallback:(RCTResponseSenderBlock)errorCallback successCallback:(RCTResponseSenderBlock)successCallback)
 
 RCT_EXTERN_METHOD(disconnect)
 
