@@ -61,7 +61,7 @@ export class MqttClient {
    *
    *   Resolved when the identity is set.
    */
-  setIdentity(params: IdentityParameters) {
+  setIdentity(params: IdentityParameters): Promise<void> {
     return MqttClientImpl.setIdentity(params);
   }
 
@@ -94,6 +94,23 @@ export class MqttClient {
    */
   publish(topic: string, payload: string, errorCallback?: CallbackFunction) {
     MqttClientImpl.publish(topic, payload, errorCallback);
+  }
+
+  /**
+   * Subscribes a specified topic.
+   *
+   * @function subscribe
+   *
+   * @param topic
+   *
+   *   Topic to subscribe.
+   *
+   * @return {Promise<void>}
+   *
+   *   Resolved when subscription has done.
+   */
+  subscribe(topic: string): Promise<void> {
+    return MqttClientImpl.subscribe(topic);
   }
 
   /**
