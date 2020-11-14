@@ -29,7 +29,7 @@ func loadPrivateKey(fromPem: String) -> SecKey? {
 }
 
 @objc(MqttClient)
-class MqttClient: NSObject, RCTBridgeModule, RCTInvalidating {
+class MqttClient : RCTEventEmitter {
     static let APPLICATION_TAG = "com.github.emoto-kc-ak.react-native-mqtt-client"
 
     // certificates for SSL connection.
@@ -37,12 +37,31 @@ class MqttClient: NSObject, RCTBridgeModule, RCTInvalidating {
 
     var client: CocoaMQTT?
 
-    static func moduleName() -> String! {
+    var hasListeners: Bool = false
+
+    static override func moduleName() -> String! {
         return "MqttClient"
     }
 
-    static func requiresMainQueueSetup() -> Bool {
+    static override func requiresMainQueueSetup() -> Bool {
         return false
+    }
+
+    override func supportedEvents() -> [String] {
+        return [
+            "connected",
+            "disconnected",
+            "received-message",
+            "got-error"
+        ]
+    }
+
+    override func startObserving() -> Void {
+        self.hasListeners = true
+    }
+
+    override func stopObserving() -> Void {
+        self.hasListeners = false
     }
 
     @objc(setIdentity:resolve:reject:)
@@ -144,7 +163,7 @@ class MqttClient: NSObject, RCTBridgeModule, RCTInvalidating {
         os_log("MqttConnector: invalidating")
         self.disconnect()
     }
-    
+
     @objc(publish:payload:errorCallback:)
     func publish(topic: String, payload: String, errorCallback: RCTResponseSenderBlock) -> Void
     {
@@ -155,11 +174,35 @@ class MqttClient: NSObject, RCTBridgeModule, RCTInvalidating {
         }
         client.publish(CocoaMQTTMessage(topic: topic, string: payload))
     }
+
+    func notifyEvent(eventName: String) -> Void {
+        self.notifyEvent(eventName: eventName, arg: nil)
+    }
+
+    func notifyEvent(eventName: String, arg: Any?) -> Void {
+        if self.hasListeners {
+            self.sendEvent(withName: eventName, body: arg)
+        }
+    }
+
+    func notifyError(code: String, message: String) -> Void {
+        let arg: [String: String] = [
+            "code": code,
+            "message": message
+        ]
+        self.notifyEvent(eventName: "got-error", arg: arg)
+    }
 }
 
 extension MqttClient : CocoaMQTTDelegate {
     func mqtt(_ mqtt: CocoaMQTT, didConnectAck ack: CocoaMQTTConnAck) {
         os_log("MqttClient: didConnectAck=%s", "\(ack)")
+        if ack == .accept {
+            self.notifyEvent(eventName: "connected")
+            mqtt.subscribe("sample-topic/test")
+        } else {
+            self.notifyError(code: "ERROR_CONNECTION", message: "\(ack)")
+        }
     }
 
     func mqtt(_ mqtt: CocoaMQTT, didStateChangeTo state: CocoaMQTTConnState) {
@@ -178,6 +221,11 @@ extension MqttClient : CocoaMQTTDelegate {
     func mqtt(_ mqtt: CocoaMQTT, didReceiveMessage message: CocoaMQTTMessage, id: UInt16)
     {
         os_log("MqttClient: didReceiveMessage=%s", message.string ?? "")
+        let event: [String: String] = [
+            "topic": message.topic,
+            "payload": message.string ?? ""
+        ]
+        self.notifyEvent(eventName: "received-message", arg: event)
     }
 
     func mqtt(_ mqtt: CocoaMQTT, didSubscribeTopic topics: [String]) {
@@ -198,5 +246,10 @@ extension MqttClient : CocoaMQTTDelegate {
 
     func mqttDidDisconnect(_ mqtt: CocoaMQTT, withError err: Error?) {
         os_log("MqttClient: didDisconnect")
+        if err != nil {
+            self.notifyError(code: "ERROR_CONNECTION", message: "\(err!)")
+        } else {
+            self.notifyEvent(eventName: "disconnected")
+        }
     }
 }
