@@ -175,6 +175,19 @@ class MqttClient : RCTEventEmitter {
         client.publish(CocoaMQTTMessage(topic: topic, string: payload))
     }
 
+    @objc(subscribe:resolve:reject:)
+    func subscribe(topic: String, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) -> Void
+    {
+        os_log("MqttClient: subscribing %s", topic)
+        guard let client = self.client else {
+            reject("NO_CONNECTION", "no MQTT connection", nil)
+            return
+        }
+        client.subscribe(topic)
+        // TODO: subscription has not been done
+        resolve(nil)
+    }
+
     func notifyEvent(eventName: String) -> Void {
         self.notifyEvent(eventName: eventName, arg: nil)
     }
@@ -199,7 +212,6 @@ extension MqttClient : CocoaMQTTDelegate {
         os_log("MqttClient: didConnectAck=%s", "\(ack)")
         if ack == .accept {
             self.notifyEvent(eventName: "connected")
-            mqtt.subscribe("sample-topic/test")
         } else {
             self.notifyError(code: "ERROR_CONNECTION", message: "\(ack)")
         }
