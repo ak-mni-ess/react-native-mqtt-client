@@ -196,7 +196,7 @@ class RNMqttClient(reactContext: ReactApplicationContext)
 
                 override fun connectionLost(cause: Throwable) {
                     Log.d(NAME, "connectionLost", cause)
-                    this@RNMqttClient.notifyEvent("ERROR_CONNECTION", cause)
+                    this@RNMqttClient.notifyError("ERROR_CONNECTION", cause)
                     this@RNMqttClient.notifyEvent("disconnected", null)
                 }
 
@@ -244,16 +244,11 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                     successCallback?.invoke(
                         "connected, token: ${asyncActionToken}"
                     )
-                    try {
-                        this@RNMqttClient.subscribe()
-                    } catch (e: MqttException) {
-                        Log.e(NAME, "failed to subscribe", e)
-                    }
                 }
 
                 override fun onFailure(
                         asyncActionToken: IMqttToken,
-                        cause: Throwable
+                        cause: Throwable?
                 ) {
                     Log.e(
                         NAME,
@@ -263,7 +258,7 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                     errorCallback?.invoke(
                         "failed to connect, token: ${asyncActionToken}"
                     )
-                    this@RNMqttClient.notifyEvent("ERROR_CONNECTION", cause);
+                    this@RNMqttClient.notifyError("ERROR_CONNECTION", cause);
                 }
             })
         } catch (e: MqttException) {
@@ -295,14 +290,14 @@ class RNMqttClient(reactContext: ReactApplicationContext)
 
                 override fun onFailure(
                         asyncActionToken: IMqttToken,
-                        cause: Throwable
+                        cause: Throwable?
                 ) {
                     Log.e(
                         NAME,
                         "failed to disconnect, token: ${asyncActionToken}",
                         cause
                     )
-                    this@RNMqttClient.notifyEvent("ERROR_DISCONNECT", cause)
+                    this@RNMqttClient.notifyError("ERROR_DISCONNECT", cause)
                 }
             })
         } catch (e: MqttException) {
@@ -310,36 +305,6 @@ class RNMqttClient(reactContext: ReactApplicationContext)
             return
         }
     }
-
-    // @throws MqttException
-    private fun subscribe() {
-        val client = this.client
-        if (client == null) {
-            return
-        }
-        val token = client.subscribe(
-            "sample-topic/test",
-            1 // qos
-        )
-        token.setActionCallback(object : IMqttActionListener {
-            override fun onSuccess(asyncActionToken: IMqttToken) {
-                Log.d(NAME, "subscribed, token: ${asyncActionToken}")
-            }
-
-            override fun onFailure(
-                    asyncActionToken: IMqttToken,
-                    cause: Throwable
-            ) {
-                Log.e(
-                    NAME,
-                    "failed to subscribe, token: ${asyncActionToken}",
-                    cause
-                )
-                this@RNMqttClient.notifyEvent("ERROR_SUBSCRIBE", cause)
-            }
-        })
-    }
-
 
     /**
      * Publishes given data to a specified topic.
@@ -378,7 +343,7 @@ class RNMqttClient(reactContext: ReactApplicationContext)
 
             override fun onFailure(
                     asyncActionToken: IMqttToken,
-                    cause: Throwable
+                    cause: Throwable?
             ) {
                 Log.e(
                     NAME,
@@ -386,16 +351,65 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                     cause
                 )
                 errorCallback?.invoke("failed to publish to $topic")
-                this@RNMqttClient.notifyEvent("ERROR_PUBLISH", cause)
+                this@RNMqttClient.notifyError("ERROR_PUBLISH", cause)
             }
         })
     }
 
+    /**
+     * Subscribes a specified topic.
+     *
+     * @param topic
+     *
+     *   Topic to subscribe.
+     *
+     * @param promise
+     *
+     *   Resolved when subscription has done.
+     */
+    @ReactMethod
+    fun subscribe(topic: String, promise: Promise) {
+        val client = this.client
+        if (client == null) {
+            promise.reject("NO_CONNECTION", Exception("no MQTT connection"))
+            return
+        }
+        try {
+            val token = client.subscribe(
+                topic,
+                1 // qos
+            )
+            token.setActionCallback(object : IMqttActionListener {
+                override fun onSuccess(asyncActionToken: IMqttToken) {
+                    Log.d(NAME, "subscribed, token: ${asyncActionToken}")
+                    promise.resolve(null)
+                }
+
+                override fun onFailure(
+                        asyncActionToken: IMqttToken,
+                        cause: Throwable?
+                ) {
+                    Log.e(
+                        NAME,
+                        "failed to subscribe, token: ${asyncActionToken}",
+                        cause
+                    )
+                    this@RNMqttClient.notifyError("ERROR_SUBSCRIBE", cause)
+                    // TODO: iOS may not be able to reject this case
+                    promise.reject("ERROR_SUBSCRIBE", cause)
+                }
+            })
+        } catch (e: MqttException) {
+            Log.e(NAME, "failed to subscribe '$topic'", e)
+            promise.reject("ERROR_SUBSCRIBE", e)
+        }
+    }
+
     // Notifies a `got-error` event.
-    private fun notifyError(code: String, cause: Throwable) {
+    private fun notifyError(code: String, cause: Throwable?) {
         val params = Arguments.createMap()
         params.putString("code", code)
-        params.putString("message", cause.message)
+        params.putString("message", cause?.message ?: "")
         this.notifyEvent("got-error", params)
     }
 
