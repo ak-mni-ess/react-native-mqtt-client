@@ -1,6 +1,7 @@
 package com.github.emotokcak.reactnative.mqtt
 
 import android.util.Log
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Callback
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.Promise
@@ -10,6 +11,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.ReadableType
+import com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter
 import javax.net.ssl.SSLSocketFactory
 import org.eclipse.paho.android.service.MqttAndroidClient
 import org.eclipse.paho.android.service.MqttTraceHandler
@@ -189,10 +191,13 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                         serverURI: String
                 ) {
                     Log.d(NAME, "connectComplete")
+                    this@RNMqttClient.notifyEvent("connected", null)
                 }
 
                 override fun connectionLost(cause: Throwable) {
                     Log.d(NAME, "connectionLost", cause)
+                    this@RNMqttClient.notifyEvent("ERROR_CONNECTION", cause)
+                    this@RNMqttClient.notifyEvent("disconnected", null)
                 }
 
                 override fun deliveryComplete(token: IMqttDeliveryToken) {
@@ -204,6 +209,10 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                         message: MqttMessage
                 ) {
                     Log.d(NAME, "messageArrived")
+                    val params = Arguments.createMap()
+                    params.putString("topic", topic)
+                    params.putString("payload", message.toString())
+                    this@RNMqttClient.notifyEvent("received-message", params)
                 }
             })
             client.setTraceEnabled(true)
@@ -244,16 +253,17 @@ class RNMqttClient(reactContext: ReactApplicationContext)
 
                 override fun onFailure(
                         asyncActionToken: IMqttToken,
-                        exception: Throwable
+                        cause: Throwable
                 ) {
                     Log.e(
                         NAME,
                         "failed to connect, token: ${asyncActionToken}",
-                        exception
+                        cause
                     )
                     errorCallback?.invoke(
                         "failed to connect, token: ${asyncActionToken}"
                     )
+                    this@RNMqttClient.notifyEvent("ERROR_CONNECTION", cause);
                 }
             })
         } catch (e: MqttException) {
@@ -280,6 +290,7 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                 override fun onSuccess(asyncActionToken: IMqttToken) {
                     Log.d(NAME, "disconnected, token: ${asyncActionToken}")
                     this@RNMqttClient.client = null
+                    this@RNMqttClient.notifyEvent("disconnected", null)
                 }
 
                 override fun onFailure(
@@ -291,6 +302,7 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                         "failed to disconnect, token: ${asyncActionToken}",
                         cause
                     )
+                    this@RNMqttClient.notifyEvent("ERROR_DISCONNECT", cause)
                 }
             })
         } catch (e: MqttException) {
@@ -323,6 +335,7 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                     "failed to subscribe, token: ${asyncActionToken}",
                     cause
                 )
+                this@RNMqttClient.notifyEvent("ERROR_SUBSCRIBE", cause)
             }
         })
     }
@@ -373,8 +386,24 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                     cause
                 )
                 errorCallback?.invoke("failed to publish to $topic")
+                this@RNMqttClient.notifyEvent("ERROR_PUBLISH", cause)
             }
         })
+    }
+
+    // Notifies a `got-error` event.
+    private fun notifyError(code: String, cause: Throwable) {
+        val params = Arguments.createMap()
+        params.putString("code", code)
+        params.putString("message", cause.message)
+        this.notifyEvent("got-error", params)
+    }
+
+    // Notifies a given event.
+    private fun notifyEvent(eventName: String, params: Any?) {
+        this.getReactApplicationContext()
+            .getJSModule(RCTDeviceEventEmitter::class.java)
+            .emit(eventName, params)
     }
 
     // Parameters for connection.
