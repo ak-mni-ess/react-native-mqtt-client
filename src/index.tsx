@@ -1,20 +1,50 @@
-import { NativeModules } from 'react-native';
-// no type declaration for EventEmitter
-// @ts-ignore
-import EventEmitter from 'react-native/Libraries/vendor/emitter/EventEmitter';
+import { NativeEventEmitter, NativeModules } from 'react-native';
 
 const { MqttClient: MqttClientImpl } = NativeModules;
+
+const eventBridge = new NativeEventEmitter(MqttClientImpl);
 
 /**
  * MQTT client.
  *
+ * #### Events
+ *
+ * Emits the following events.
+ * - `"connected"`
+ * - `"disconnected"`
+ * - `"got-error"`
+ *
+ * ##### connected
+ *
+ * Notified when connection to an MQTT broker has been established.
+ *
+ * No arguments.
+ *
+ * ##### disconnected
+ *
+ * Notified when the client is disconnected from the MQTT broker.
+ *
+ * No arguments.
+ *
+ * ##### received-message
+ *
+ * Notified when the client has received a message from the MQTT broker.
+ *
+ * The argument is an object which has the following fields,
+ * - `topic`: {`string`} topic of the received message.
+ * - `payload`: {`string`} payload of the received message.
+ *
+ * ##### got-error
+ *
+ * Notified when an error has occurred.
+ *
+ * The argument is an object that has the following fields,
+ * - `code`: {`string`} error code.
+ * - `message`: {`string`} explanation of the error.
+ *
  * @class MqttClient
  */
-export class MqttClient extends EventEmitter {
-  constructor() {
-    super();
-  }
-
+export class MqttClient {
   /**
    * Sets the identity for connection.
    *
@@ -65,12 +95,35 @@ export class MqttClient extends EventEmitter {
   publish(topic: string, payload: string, errorCallback?: CallbackFunction) {
     MqttClientImpl.publish(topic, payload, errorCallback);
   }
+
+  /**
+   * Listens for a given event from this client.
+   *
+   * @function addListener
+   */
+  addListener(eventName: string, listener: ListenerFunction) {
+    eventBridge.addListener(eventName, listener);
+  }
+
+  /**
+   * Unlistens for a given event from this client.
+   *
+   * @function removeListener
+   */
+  removeListener(eventName: string, listener: ListenerFunction) {
+    eventBridge.removeListener(eventName, listener);
+  }
 }
 
 /**
  * Callback function.
  */
 type CallbackFunction = (message: string) => void;
+
+/**
+ * Listener function.
+ */
+type ListenerFunction = (...args: any[]) => void;
 
 /**
  * Parameters constituting an identity.
