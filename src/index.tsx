@@ -69,13 +69,15 @@ export class MqttClient {
    * Connects to an MQTT broker.
    *
    * @function connect
+   *
+   * @param params
+   *
+   * @return Promise<void>
+   *
+   *   Resolved when connection has been established.
    */
-  connect(
-    params: ConnectionParameters,
-    errorCallback?: CallbackFunction,
-    successCallback?: CallbackFunction
-  ) {
-    MqttClientImpl.connect(params, errorCallback, successCallback);
+  connect(params: ConnectionParameters): Promise<void> {
+    return MqttClientImpl.connect(params);
   }
 
   /**
@@ -91,9 +93,17 @@ export class MqttClient {
    * Publishes a given payload to a specified topic.
    *
    * @function publish
+   *
+   * @param topic
+   *
+   * @param payload
+   *
+   * @return Promise<void>
+   *
+   *   Resolved when publishing has finished.
    */
-  publish(topic: string, payload: string, errorCallback?: CallbackFunction) {
-    MqttClientImpl.publish(topic, payload, errorCallback);
+  publish(topic: string, payload: string): Promise<void> {
+    return MqttClientImpl.publish(topic, payload);
   }
 
   /**
@@ -131,11 +141,6 @@ export class MqttClient {
     eventBridge.removeListener(eventName, listener);
   }
 }
-
-/**
- * Callback function.
- */
-type CallbackFunction = (message: string) => void;
 
 /**
  * Listener function.
