@@ -4,11 +4,11 @@
 
 RCT_EXTERN_METHOD(setIdentity:(NSDictionary*)params resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 
-RCT_EXTERN_METHOD(connect:(NSDictionary*)params errorCallback:(RCTResponseSenderBlock)errorCallback successCallback:(RCTResponseSenderBlock)successCallback)
+RCT_EXTERN_METHOD(connect:(NSDictionary*)params resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(disconnect)
 
-RCT_EXTERN_METHOD(publish:(NSString*)topic payload:(NSString*)payload errorCallback:(RCTResponseSenderBlock)errorCallback)
+RCT_EXTERN_METHOD(publish:(NSString*)topic payload:(NSString*)payload resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(subscribe:(NSString*)topic resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 

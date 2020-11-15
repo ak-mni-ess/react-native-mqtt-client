@@ -183,11 +183,11 @@ class MqttClient : RCTEventEmitter {
         return self.certArray ?? self.loadIdentity()
     }
 
-    @objc(connect:errorCallback:successCallback:)
-    func connect(params: NSDictionary, errorCallback: RCTResponseSenderBlock?, successCallback: RCTResponseSenderBlock?) -> Void
+    @objc(connect:resolve:reject:)
+    func connect(params: NSDictionary, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) -> Void
     {
         guard let certArray = self.getIdentity() else {
-            errorCallback?(["no identity is available"])
+            reject("ERROR_CONFIG", "no identity is configured", nil)
             return
         }
         let host: String = RCTConvert.nsString(params["host"])
@@ -205,13 +205,13 @@ class MqttClient : RCTEventEmitter {
         self.client!.keepAlive = 60
         self.client!.delegate = self
         _ = self.client!.connect()
-        successCallback?(["connecting to the MQTT broker"])
+        resolve(nil)
     }
 
     @objc(disconnect)
     func disconnect() -> Void {
+        os_log("MqttClient: disconnecting")
         self.client?.disconnect()
-        os_log("MqttClient: disconnected")
     }
 
     // https://stackoverflow.com/a/38161889
@@ -220,15 +220,16 @@ class MqttClient : RCTEventEmitter {
         self.disconnect()
     }
 
-    @objc(publish:payload:errorCallback:)
-    func publish(topic: String, payload: String, errorCallback: RCTResponseSenderBlock) -> Void
+    @objc(publish:payload:resolve:reject:)
+    func publish(topic: String, payload: String, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) -> Void
     {
         os_log("MqttClient: publishing to %s", topic)
         guard let client = self.client else {
-            errorCallback(["no MQTT connection"])
+            reject("NO_CONNECTION", "no MQTT connection", nil)
             return
         }
         client.publish(CocoaMQTTMessage(topic: topic, string: payload))
+        resolve(nil)
     }
 
     @objc(subscribe:resolve:reject:)
