@@ -32,6 +32,8 @@ func loadPrivateKey(fromPem: String) -> SecKey? {
 class MqttClient : RCTEventEmitter {
     static let APPLICATION_TAG = "com.github.emoto-kc-ak.react-native-mqtt-client"
 
+    static let ROOT_CERTIFICATE_ATTR_LABEL = "Root certificate of an MQTT broker"
+
     // certificates for SSL connection.
     var certArray: CFArray?
 
@@ -105,6 +107,19 @@ class MqttClient : RCTEventEmitter {
             reject("INVALID_IDENTITY", "failed to add the certificate to the keychain: \(err)", nil)
             return
         }
+        // adds the root certificate to the keychain
+        // TODO: root certificate may be stored in other place,
+        //       because it is public information.
+        let addCaCertAttrs: [String: Any] = [
+            kSecClass as String: kSecClassCertificate,
+            kSecValueRef as String: caCert,
+            kSecAttrLabel as String: Self.ROOT_CERTIFICATE_ATTR_LABEL
+        ]
+        err = SecItemAdd(addCaCertAttrs as CFDictionary, nil)
+        guard err == errSecSuccess || err == errSecDuplicateItem else {
+            reject("INVALID_IDENTITY", "failed to add the root certificate to the keychain: \(err)", nil)
+            return
+        }
         // obtains the identity
         let queryIdentityAttrs: [String: Any] = [
             kSecClass as String: kSecClassIdentity,
@@ -127,11 +142,52 @@ class MqttClient : RCTEventEmitter {
         resolve(nil)
     }
 
+    // loads the identity from the key chain.
+    func loadIdentity() -> CFArray? {
+        // obtains the CA certificate
+        let queryCaCertAttrs: [String: Any] = [
+            kSecClass as String: kSecClassCertificate,
+            kSecAttrLabel as String: Self.ROOT_CERTIFICATE_ATTR_LABEL,
+            kSecReturnRef as String: true
+        ]
+        var caCert: CFTypeRef?
+        var err = SecItemCopyMatching(queryCaCertAttrs as CFDictionary, &caCert)
+        guard err == errSecSuccess else {
+            os_log("MqttClient: failed to query the keychain for the root certificate: %s", "\(err)")
+            return nil
+        }
+        guard CFGetTypeID(caCert) == SecCertificateGetTypeID() else {
+            os_log("MqttClient: failed to query the keychain for the root certificate: type ID mismatch")
+            return nil
+        }
+        // obtains the identity
+        let queryIdentityAttrs: [String: Any] = [
+            kSecClass as String: kSecClassIdentity,
+            kSecAttrApplicationTag as String: Self.APPLICATION_TAG,
+            kSecReturnRef as String: true
+        ]
+        var identity: CFTypeRef?
+        err = SecItemCopyMatching(queryIdentityAttrs as CFDictionary, &identity)
+        guard err == errSecSuccess else {
+            os_log("MqttClient: failed to query the keychain for the identity: %s", "\(err)")
+            return nil
+        }
+        guard CFGetTypeID(identity) == SecIdentityGetTypeID() else {
+            os_log("MqttClient: failed to query the keychain for the identity: type ID mismatch")
+            return nil
+        }
+        return [identity!, caCert!] as CFArray
+    }
+
+    func getIdentity() -> CFArray? {
+        return self.certArray ?? self.loadIdentity()
+    }
+
     @objc(connect:errorCallback:successCallback:)
     func connect(params: NSDictionary, errorCallback: RCTResponseSenderBlock?, successCallback: RCTResponseSenderBlock?) -> Void
     {
-        guard let certArray = self.certArray else {
-            errorCallback?(["no identity is set"])
+        guard let certArray = self.getIdentity() else {
+            errorCallback?(["no identity is available"])
             return
         }
         let host: String = RCTConvert.nsString(params["host"])
@@ -155,19 +211,19 @@ class MqttClient : RCTEventEmitter {
     @objc(disconnect)
     func disconnect() -> Void {
         self.client?.disconnect()
-        os_log("MqttConnector: disconnected")
+        os_log("MqttClient: disconnected")
     }
 
     // https://stackoverflow.com/a/38161889
     func invalidate() -> Void {
-        os_log("MqttConnector: invalidating")
+        os_log("MqttClient: invalidating")
         self.disconnect()
     }
 
     @objc(publish:payload:errorCallback:)
     func publish(topic: String, payload: String, errorCallback: RCTResponseSenderBlock) -> Void
     {
-        os_log("MqttConnector: publishing to %s", topic)
+        os_log("MqttClient: publishing to %s", topic)
         guard let client = self.client else {
             errorCallback(["no MQTT connection"])
             return
