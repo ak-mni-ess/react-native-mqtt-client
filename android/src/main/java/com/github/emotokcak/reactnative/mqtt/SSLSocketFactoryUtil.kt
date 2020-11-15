@@ -1,5 +1,6 @@
 package com.github.emotokcak.reactnative.mqtt
 
+import android.util.Log
 import java.security.KeyStore
 import java.security.PrivateKey
 import java.security.cert.Certificate
@@ -14,6 +15,10 @@ object SSLSocketFactoryUtil {
     private const val SSL_PROTOCOL: String = "TLSv1.2"
 
     private const val PASSWORD: String = ""
+
+    private const val CA_CERTIFICATE_ALIAS = "ca-certificate"
+
+    private const val PRIVATE_KEY_ALIAS = "private-key"
 
     /**
      * Creates an `SSLSocketFactory` with given certificates.
@@ -58,18 +63,22 @@ object SSLSocketFactoryUtil {
         val rootCaCert = PEMLoader.loadX509CertificateFromString(caCertPem)
         val clientCert = PEMLoader.loadX509CertificateFromString(certPem)
         val clientKey = PEMLoader.loadPrivateKeyFromString(keyPem)
+        // certificates and a key saved in the AndroidKeyStore are persisted.
         // please refer to the following section for AndroidKeyStore,
         // https://developer.android.com/training/articles/keystore#UsingAndroidKeyStore
         val androidKeyStore = KeyStore.getInstance("AndroidKeyStore")
         androidKeyStore.load(null)
-        androidKeyStore.setCertificateEntry("ca-certificate", rootCaCert)
-        androidKeyStore.setCertificateEntry("certificate", clientCert)
+        Log.d(
+            "SSLSocketFactoryUtil",
+            "aliases: ${androidKeyStore.aliases().toList()}"
+        )
         androidKeyStore.setKeyEntry(
-            "private-key",
+            PRIVATE_KEY_ALIAS,
             clientKey,
             PASSWORD.toCharArray(),
             arrayOf(clientCert)
         )
+        androidKeyStore.setCertificateEntry(CA_CERTIFICATE_ALIAS, rootCaCert)
         return this.createSocketFactoryFromKeyStore(androidKeyStore)
     }
 

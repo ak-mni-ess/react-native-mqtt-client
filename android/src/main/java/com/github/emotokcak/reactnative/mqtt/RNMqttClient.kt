@@ -92,7 +92,6 @@ class RNMqttClient(reactContext: ReactApplicationContext)
      *
      *   Promise that is resolved when the identity is set.
      */
-    @Synchronized
     @ReactMethod
     fun setIdentity(params: ReadableMap, promise: Promise) {
         try {
@@ -122,7 +121,6 @@ class RNMqttClient(reactContext: ReactApplicationContext)
      *   `SSLSocketFactory` to connect to an MQTT broker.
      *   `null` if no socket factory is available.
      */
-    @Synchronized
     private fun getSocketFactory(): SSLSocketFactory? {
         try {
             return this.socketFactory ?:
@@ -146,33 +144,28 @@ class RNMqttClient(reactContext: ReactApplicationContext)
      *   Parameters for connection.
      *   Please see above.
      *
-     * @param errorCallback
+     * @param promise
      *
-     *   Called when an error has occurred.
-     *
-     * @param successCallback
-     *
-     *   Called when connection has been established.
+     *   Resolved when connection has been established.
      */
     @ReactMethod
-    fun connect(
-            params: ReadableMap,
-            errorCallback: Callback?,
-            successCallback: Callback?
-    ) {
+    fun connect(params: ReadableMap, promise: Promise) {
         // parses parameters
         val parsedParams: ConnectionParameters
         try {
             parsedParams = ConnectionParameters.parseReadableMap(params)
         } catch (e: IllegalArgumentException) {
             Log.e(NAME, "invalid connection parameters", e)
-            errorCallback?.invoke(e.message)
+            promise.reject("RANGE_ERROR", e)
             return
         }
         // obtains a socket factory
         val socketFactory = this.getSocketFactory()
         if (socketFactory == null) {
-            errorCallback?.invoke("no SSLSocketFactory is available")
+            promise.reject(
+                "ERROR_CONFIG",
+                Exception("no identity is configured")
+            )
             return
         }
         // initializes a client
@@ -241,9 +234,7 @@ class RNMqttClient(reactContext: ReactApplicationContext)
             token.setActionCallback(object: IMqttActionListener {
                 override fun onSuccess(asyncActionToken: IMqttToken) {
                     Log.d(NAME, "connected, token: ${asyncActionToken}")
-                    successCallback?.invoke(
-                        "connected, token: ${asyncActionToken}"
-                    )
+                    promise.resolve(null)
                 }
 
                 override fun onFailure(
@@ -255,14 +246,12 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                         "failed to connect, token: ${asyncActionToken}",
                         cause
                     )
-                    errorCallback?.invoke(
-                        "failed to connect, token: ${asyncActionToken}"
-                    )
-                    this@RNMqttClient.notifyError("ERROR_CONNECTION", cause);
+                    promise.reject("ERROR_CONNECTION", cause)
                 }
             })
         } catch (e: MqttException) {
             Log.e(NAME, "failed to connect", e)
+            promise.reject("ERROR_CONNECTION", e)
             return
         }
     }
@@ -319,41 +308,48 @@ class RNMqttClient(reactContext: ReactApplicationContext)
      *
      *   Payload to be published.
      *
-     * @param errorCallback
+     * @param promise
      *
-     *   Called when an error has occurred.
+     *   Resolved when publishing has finished.
      */
     @ReactMethod
-    fun publish(topic: String, payload: String, errorCallback: Callback?) {
+    fun publish(topic: String, payload: String, promise: Promise) {
         val client = this.client
         if (client == null) {
             Log.w(NAME, "failed to publish. no MQTT connection")
             return
         }
-        val token = client.publish(
-            topic,
-            payload.toByteArray(),
-            1, // qos
-            false // not retained
-        )
-        token.setActionCallback(object : IMqttActionListener {
-            override fun onSuccess(asyncActionToken: IMqttToken) {
-                Log.d(NAME, "published, token: ${asyncActionToken}")
-            }
+        try {
+            val token = client.publish(
+                topic,
+                payload.toByteArray(),
+                1, // qos
+                false // not retained
+            )
+            token.setActionCallback(object : IMqttActionListener {
+                override fun onSuccess(asyncActionToken: IMqttToken) {
+                    Log.d(NAME, "published, token: ${asyncActionToken}")
+                    promise.resolve(null)
+                }
 
-            override fun onFailure(
-                    asyncActionToken: IMqttToken,
-                    cause: Throwable?
-            ) {
-                Log.e(
-                    NAME,
-                    "failed to publish, token: ${asyncActionToken}",
-                    cause
-                )
-                errorCallback?.invoke("failed to publish to $topic")
-                this@RNMqttClient.notifyError("ERROR_PUBLISH", cause)
-            }
-        })
+                override fun onFailure(
+                        asyncActionToken: IMqttToken,
+                        cause: Throwable?
+                ) {
+                    Log.e(
+                        NAME,
+                        "failed to publish, token: ${asyncActionToken}",
+                        cause
+                    )
+                    this@RNMqttClient.notifyError("ERROR_PUBLISH", cause)
+                    promise.reject("ERROR_PUBLISH", cause)
+                }
+            })
+        } catch (e: MqttException) {
+            Log.e(NAME, "failed to publish to ${topic}", e)
+            promise.reject("ERROR_PUBLISH", e)
+            return
+        }
     }
 
     /**
@@ -415,6 +411,7 @@ class RNMqttClient(reactContext: ReactApplicationContext)
 
     // Notifies a given event.
     private fun notifyEvent(eventName: String, params: Any?) {
+        Log.d(NAME, "notifying event $eventName")
         this.getReactApplicationContext()
             .getJSModule(RCTDeviceEventEmitter::class.java)
             .emit(eventName, params)
