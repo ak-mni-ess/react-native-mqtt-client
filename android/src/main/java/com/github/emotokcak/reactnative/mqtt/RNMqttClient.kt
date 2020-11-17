@@ -34,6 +34,12 @@ class RNMqttClient(reactContext: ReactApplicationContext)
         : ReactContextBaseJavaModule(reactContext)
 {
     companion object {
+        /** Default alias for a root certificate in a key store. */
+        const val DEFAULT_CA_CERT_ALIAS: String = "ca-certificate"
+
+        /** Default alias for a private key in a key store. */
+        const val DEFAULT_KEY_ALIAS: String = "private-key"
+
         private const val NAME: String = "MqttClient"
 
         private const val PROTOCOL: String = "ssl"
@@ -80,6 +86,12 @@ class RNMqttClient(reactContext: ReactApplicationContext)
      * - `caCertPem`: {`String`} PEM representation of a root CA certificate.
      * - `certPem`: {`String`} PEM representation of a certificate.
      * - `keyPem`: {`String`} PEM representation of a private key.
+     * - `keyStoreOptions`: {`ReadableMap`} options for a key store.
+     *   May have the following optional key-value pairs,
+     *     - `caCertAlias`: {`String`} alias for a root certificate.
+     *       `DEFAULT_CA_CERT_ALIAS` if omitted.
+     *     - `keyAlias`: {`String`} alias for a private key.
+     *       `DEFAULT_KEY_ALIAS` if omitted.
      *
      * If there is already connection to an MQTT broker, this new identity
      * won't affect it.
@@ -95,10 +107,16 @@ class RNMqttClient(reactContext: ReactApplicationContext)
     @ReactMethod
     fun setIdentity(params: ReadableMap, promise: Promise) {
         try {
+            val keyStoreOptions: ReadableMap? =
+                params.getOptionalMap("keyStoreOptions")
             this.socketFactory = SSLSocketFactoryUtil.createSocketFactory(
-                params.getRequiredString("caCertPem"),
-                params.getRequiredString("certPem"),
-                params.getRequiredString("keyPem")
+                caCertPem=params.getRequiredString("caCertPem"),
+                certPem=params.getRequiredString("certPem"),
+                keyPem=params.getRequiredString("keyPem"),
+                caCertAlias=keyStoreOptions?.getOptionalString("caCertAlias") ?:
+                    DEFAULT_CA_CERT_ALIAS,
+                keyAlias=keyStoreOptions?.getOptionalString("keyAlias") ?:
+                    DEFAULT_KEY_ALIAS
             )
             promise.resolve(null)
             return
@@ -108,6 +126,46 @@ class RNMqttClient(reactContext: ReactApplicationContext)
             return
         } catch (e: Exception) {
             Log.e(NAME, "failed to create an SSLSocketFactory", e)
+            promise.reject("INVALID_IDENTITY", e)
+            return
+        }
+    }
+
+    /**
+     * Resets the identity stored in the key store.
+     *
+     * `options` may have the following optional key-value pairs,
+     * - `ceCertAlias`: (`string`)
+     *   alias associated with a root certificate to be cleared.
+     *   `DEFAULT_CA_CERT_ALIAS` if omitted.
+     * - `keyAlias`: (`string`)
+     *   alias associated with a private key to be cleared.
+     *   `DEFAULT_KEY_ALIAS` if omitted.
+     *
+     * @param options
+     *
+     *   Options for the key store.
+     *
+     * @param promise
+     *
+     *   Promise that is resolved when the identity is reset.
+     */
+    @ReactMethod
+    fun resetIdentity(options: ReadableMap, promise: Promise) {
+        try {
+            SSLSocketFactoryUtil.resetAndroidKeyStore(
+                options.getOptionalString("caCertAlias") ?:
+                    DEFAULT_CA_CERT_ALIAS,
+                options.getOptionalString("keyAlias") ?: DEFAULT_KEY_ALIAS
+            )
+            promise.resolve(null)
+            return
+        } catch (e: IllegalArgumentException) {
+            Log.e(NAME, "invalid key store options", e)
+            promise.reject("RANGE_ERROR", e)
+            return
+        } catch (e: Exception) {
+            Log.e(NAME, "failed to reset the identity", e)
             promise.reject("INVALID_IDENTITY", e)
             return
         }
@@ -187,7 +245,7 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                     this@RNMqttClient.notifyEvent("connected", null)
                 }
 
-                override fun connectionLost(cause: Throwable) {
+                override fun connectionLost(cause: Throwable?) {
                     Log.d(NAME, "connectionLost", cause)
                     this@RNMqttClient.notifyError("ERROR_CONNECTION", cause)
                     this@RNMqttClient.notifyEvent("disconnected", null)
@@ -349,6 +407,11 @@ class RNMqttClient(reactContext: ReactApplicationContext)
             Log.e(NAME, "failed to publish to ${topic}", e)
             promise.reject("ERROR_PUBLISH", e)
             return
+        } catch (e: IllegalArgumentException) {
+            // maybe Invalid ClientHandle
+            Log.e(NAME, "failed to publish to ${topic}", e)
+            promise.reject("ERROR_PUBLISH", e)
+            return
         }
     }
 
@@ -398,6 +461,12 @@ class RNMqttClient(reactContext: ReactApplicationContext)
         } catch (e: MqttException) {
             Log.e(NAME, "failed to subscribe '$topic'", e)
             promise.reject("ERROR_SUBSCRIBE", e)
+            return
+        } catch (e: IllegalArgumentException) {
+            // maybe Invalid ClientHandle
+            Log.e(NAME, "failed to subscribe '$topic'", e)
+            promise.reject("ERROR_SUBSCRIBE", e)
+            return
         }
     }
 

@@ -16,10 +16,6 @@ object SSLSocketFactoryUtil {
 
     private const val PASSWORD: String = ""
 
-    private const val CA_CERTIFICATE_ALIAS = "ca-certificate"
-
-    private const val PRIVATE_KEY_ALIAS = "private-key"
-
     /**
      * Creates an `SSLSocketFactory` with given certificates.
      *
@@ -34,6 +30,14 @@ object SSLSocketFactoryUtil {
      * @param keyPem
      *
      *   PEM representation of a private key.
+     *
+     * @param caCertAlias
+     *
+     *   Alias for a root certificate.
+     *
+     * @param keyAlias
+     *
+     *   Alias for a private key.
      *
      * @return
      *
@@ -57,7 +61,9 @@ object SSLSocketFactoryUtil {
     fun createSocketFactory(
             caCertPem: String,
             certPem: String,
-            keyPem: String
+            keyPem: String,
+            caCertAlias: String,
+            keyAlias: String
     ): SSLSocketFactory {
         // Reference: https://gist.github.com/sharonbn/4104301
         val rootCaCert = PEMLoader.loadX509CertificateFromString(caCertPem)
@@ -73,12 +79,12 @@ object SSLSocketFactoryUtil {
             "aliases: ${androidKeyStore.aliases().toList()}"
         )
         androidKeyStore.setKeyEntry(
-            PRIVATE_KEY_ALIAS,
+            keyAlias,
             clientKey,
             PASSWORD.toCharArray(),
             arrayOf(clientCert)
         )
-        androidKeyStore.setCertificateEntry(CA_CERTIFICATE_ALIAS, rootCaCert)
+        androidKeyStore.setCertificateEntry(caCertAlias, rootCaCert)
         return this.createSocketFactoryFromKeyStore(androidKeyStore)
     }
 
@@ -88,6 +94,10 @@ object SSLSocketFactoryUtil {
      * @return
      *
      *   `SSLSocketFactory` created from the Android key store.
+     *
+     * @throws CertificateException
+     *
+     * @throws IOException
      *
      * @throws KeyManagementException
      *
@@ -142,5 +152,31 @@ object SSLSocketFactoryUtil {
             null // default SecureRandom
         )
         return sslContext.getSocketFactory()
+    }
+
+    /**
+     * Clears a root certificate and private key the Android key store.
+     *
+     * @param caCertAlias
+     *
+     *   Alias for the root certificate to be cleared.
+     *
+     * @param keyAlias
+     *
+     *   Alias for the private key to be cleared.
+     *
+     * @throws CertificateException
+     *
+     * @throws IOException
+     *
+     * @throws KeyStoreException
+     *
+     * @throws NoSuchAlgorithmException
+     */
+    fun resetAndroidKeyStore(caCertAlias: String, keyAlias: String) {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore")
+        keyStore.load(null)
+        keyStore.deleteEntry(caCertAlias)
+        keyStore.deleteEntry(keyAlias)
     }
 }

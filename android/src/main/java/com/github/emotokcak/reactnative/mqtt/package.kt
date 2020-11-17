@@ -10,6 +10,10 @@ import com.facebook.react.bridge.ReadableType
  *
  *   Key associated with the value to be obtained.
  *
+ * @return
+ *
+ *   String value associated with `key`.
+ *
  * @throws IllegalArgumentException
  *
  *   If there is no value associated with `key`,
@@ -17,11 +21,12 @@ import com.facebook.react.bridge.ReadableType
  */
 fun ReadableMap.getRequiredString(key: String): String {
     if (!this.hasKey(key)) {
-        throw IllegalArgumentException("this.$key must be specified")
+        throw IllegalArgumentException("no value is associated with $key")
     }
     if (this.getType(key) != ReadableType.String) {
         throw IllegalArgumentException(
-            "this.$key must be a string but ${this.getType(key)} was given"
+            "$key must be associated with a string" +
+                " but ${this.getType(key)} was given"
         )
     }
     return this.getString(key)!! // should not be null
@@ -34,6 +39,10 @@ fun ReadableMap.getRequiredString(key: String): String {
  *
  *   Key associated with the value to be obtained.
  *
+ * @return
+ *
+ *   Integer value associated with `key`.
+ *
  * @throws IllegalArgumentException
  *
  *   If there is no value associated with `key`,
@@ -41,12 +50,71 @@ fun ReadableMap.getRequiredString(key: String): String {
  */
 fun ReadableMap.getRequiredInt(key: String): Int {
     if (!this.hasKey(key)) {
-        throw IllegalArgumentException("this.$key must be specified")
+        throw IllegalArgumentException("no value is associated with $key")
     }
     if (this.getType(key) != ReadableType.Number) {
         throw IllegalArgumentException(
-            "this.$key must be an integer but ${this.getType(key)} was given"
+            "$key must be associated with an integer" +
+                " but ${this.getType(key)} was given"
         )
     }
     return this.getInt(key)
+}
+
+/**
+ * Obtains an optional string value from a given `ReadableMap`.
+ *
+ * @param key
+ *
+ *   Key associated with the value to be obtained.
+ *
+ * @return
+ *
+ *   String value associated with `key`.
+ *   `null` if no value is associated with `key`.
+ *
+ * @throws IllegalArgumentException
+ *
+ *   If the value associated with `key` is not a string.
+ */
+fun ReadableMap.getOptionalString(key: String): String? {
+    if (!this.hasKey(key)) {
+        return null
+    }
+    if (this.getType(key) != ReadableType.String) {
+        throw IllegalArgumentException(
+            "$key must be associated with a string" +
+                " but ${this.getType(key)} was given"
+        )
+    }
+    return this.getString(key)
+}
+
+/**
+ * Obtains an optional map value from a given `ReadableMap`.
+ *
+ * @param key
+ *
+ *   Key associated with the value to be obtained.
+ *
+ * @return
+ *
+ *   Map value associated with `key`.
+ *   `null` if no value is associated with `key`.
+ *
+ * @throws IllegalArgumentException
+ *
+ *   If the value associated with `key` is not a map.
+ */
+fun ReadableMap.getOptionalMap(key: String): ReadableMap? {
+    if (!this.hasKey(key)) {
+        return null
+    }
+    if (this.getType(key) != ReadableType.Map) {
+        throw IllegalArgumentException(
+            "$key must be associated with a map" +
+                " but ${this.getType(key)} was given"
+        )
+    }
+    return this.getMap(key)
 }
