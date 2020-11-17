@@ -66,6 +66,25 @@ export class MqttClient {
   }
 
   /**
+   * Resets the identity for connection.
+   *
+   * Certificates and a key stored in a device specific key store are cleared.
+   *
+   * @function resetIdentity
+   *
+   * @param options
+   *
+   *   Options for the identity key store.
+   *
+   * @return Promise<void>
+   *
+   *   Resolved when the identity is reset.
+   */
+  resetIdentity(options?: KeyStoreOptions): Promise<void> {
+    return MqttClientImpl.resetIdentity(options);
+  }
+
+  /**
    * Connects to an MQTT broker.
    *
    * @function connect
@@ -171,6 +190,50 @@ export type IdentityParameters = {
    * @member {string} keyPem
    */
   keyPem: string;
+  /**
+   * Options for an identity key store.
+   *
+   * @member {KeyStoreOptions} keyStoreOptions
+   */
+  keyStoreOptions?: KeyStoreOptions;
+};
+
+/**
+ * Options for an identity key store.
+ */
+export type KeyStoreOptions = {
+  /**
+   * Alias for a root certificate (Android only).
+   *
+   * A default value is used if omitted.
+   *
+   * @member {string} caCertTag
+   */
+  caCertAlias?: string;
+  /**
+   * Alias for a private key (Android only).
+   *
+   * A default value is used if omitted.
+   *
+   * @member {string} keyTag
+   */
+  keyAlias?: string;
+  /**
+   * Label associated with a certificate (iOS only).
+   *
+   * A default value is used if omitted.
+   *
+   * @member {string} caCertLabel
+   */
+  caCertLabel?: string;
+  /**
+   * Application tag associated with a private key (iOS only).
+   *
+   * A default value is used if omitted.
+   *
+   * @member {string} keyApplicationTag
+   */
+  keyApplicationTag?: string;
 };
 
 /**
