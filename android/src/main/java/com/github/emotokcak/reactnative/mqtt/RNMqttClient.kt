@@ -202,10 +202,10 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                         message: MqttMessage
                 ) {
                     Log.d(NAME, "messageArrived")
-                    val params = Arguments.createMap()
-                    params.putString("topic", topic)
-                    params.putString("payload", message.toString())
-                    this@RNMqttClient.notifyEvent("received-message", params)
+                    val arg = Arguments.createMap()
+                    arg.putString("topic", topic)
+                    arg.putString("payload", message.toString())
+                    this@RNMqttClient.notifyEvent("received-message", arg)
                 }
             })
             client.setTraceEnabled(true)

@@ -60,6 +60,12 @@ repositories {
     url 'https://repo.eclipse.org/content/repositories/paho-snapshots/'
   }
 
+  maven {
+    // custom maven repository
+    url 'https://emoto-kc-ak.github.io/maven-repository'
+  }
+
+
   def found = false
   def defaultDir = null
   def androidSourcesName = 'React Native sources'
@@ -135,5 +141,7 @@ dependencies {
 
   // Paho MQTT
   implementation 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.1.0'
-  implementation 'org.eclipse.paho:org.eclipse.paho.android.service:1.1.1'
+  // implementation 'org.eclipse.paho:org.eclipse.paho.android.service:1.1.1'
+  // links the custom MQTT library
+  implementation 'com.github.emoto-kc-ak:paho.mqtt.android:a2f0ce34b95eac70fd5b26910dfab33d34b55956'
 }
