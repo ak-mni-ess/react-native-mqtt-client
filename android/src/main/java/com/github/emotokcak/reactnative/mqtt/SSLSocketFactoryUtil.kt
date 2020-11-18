@@ -192,6 +192,11 @@ object SSLSocketFactoryUtil {
      *
      *   Alias for a private key.
      *
+     * @return
+     *
+     *   Whether the root certificate and the private key are stored in
+     *   the Android key store.
+     *
      * @throws CertificateException
      *
      * @throws IOException
@@ -200,10 +205,10 @@ object SSLSocketFactoryUtil {
      *
      * @throws NoSuchAlgorithmException
      */
-    fun isAndroidKeyStoreConfigured(
+    fun isIdentityStoredInAndroidKeyStore(
             caCertAlias: String,
-            keyAlias: String): Boolean
-    {
+            keyAlias: String
+    ): Boolean {
         val keyStore = KeyStore.getInstance("AndroidKeyStore")
         keyStore.load(null)
         return keyStore.isCertificateEntry(caCertAlias) &&

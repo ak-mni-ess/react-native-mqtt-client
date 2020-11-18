@@ -173,7 +173,8 @@ class RNMqttClient(reactContext: ReactApplicationContext)
     }
 
     /**
-     * Returns whether an identity for connection is configured.
+     * Returns whether an identity for connection is saved in the Android
+     * key store.
      *
      * `options` may have the following optional key-value pairs,
      * - `ceCertAlias`: (`string`)
@@ -190,12 +191,13 @@ class RNMqttClient(reactContext: ReactApplicationContext)
      *
      * @param promise
      *
-     *   Promise that is resolved when an identity is checked.
+     *   Promise that is resolved to whether the identity given by `options`
+     *   is stored in the Android key store.
      */
     @ReactMethod
-    fun hasIdentity(options: ReadableMap?, promise: Promise) {
+    fun isIdentityStored(options: ReadableMap?, promise: Promise) {
         try {
-            val result = SSLSocketFactoryUtil.isAndroidKeyStoreConfigured(
+            val result = SSLSocketFactoryUtil.isIdentityStoredInAndroidKeyStore(
                 options?.getOptionalString("caCertAlias") ?:
                     DEFAULT_CA_CERT_ALIAS,
                 options?.getOptionalString("keyAlias") ?: DEFAULT_KEY_ALIAS
