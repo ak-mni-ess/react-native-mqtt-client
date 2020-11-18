@@ -30,9 +30,11 @@ func loadPrivateKey(fromPem: String) -> SecKey? {
 
 @objc(MqttClient)
 class MqttClient : RCTEventEmitter {
-    static let APPLICATION_TAG = "com.github.emoto-kc-ak.react-native-mqtt-client"
+    static let DEFAULT_KEY_APPLICATION_TAG = "com.github.emoto-kc-ak.react-native-mqtt-client"
 
-    static let ROOT_CERTIFICATE_ATTR_LABEL = "Root certificate of an MQTT broker"
+    static let DEFAULT_CA_CERT_LABEL = "Root certificate of an MQTT broker"
+
+    static let DEFAULT_CERT_LABEL = "Certificate for an MQTT client"
 
     // certificates for SSL connection.
     var certArray: CFArray?
@@ -72,6 +74,10 @@ class MqttClient : RCTEventEmitter {
         let caCertPem: String = RCTConvert.nsString(params["caCertPem"])
         let certPem: String = RCTConvert.nsString(params["certPem"])
         let keyPem: String = RCTConvert.nsString(params["keyPem"])
+        let keyStoreOptions = RCTConvert.nsDictionary(params["keyStoreOptions"])
+        let caCertLabel: String = RCTConvert.nsString(keyStoreOptions?["caCertLabel"]) ?? Self.DEFAULT_CA_CERT_LABEL
+        let certLabel: String = RCTConvert.nsString(keyStoreOptions?["certLabel"]) ?? Self.DEFAULT_CERT_LABEL
+        let keyApplicationTag: String = RCTConvert.nsString(keyStoreOptions?["keyApplicationTag"]) ?? Self.DEFAULT_KEY_APPLICATION_TAG
         guard let caCert = loadX509Certificate(fromPem: caCertPem) else {
             reject("RANGE_ERROR", "invalid CA certificate", nil)
             return
@@ -89,7 +95,7 @@ class MqttClient : RCTEventEmitter {
             kSecClass as String: kSecClassKey,
             kSecValueRef as String: key,
             kSecAttrLabel as String: "Private key that signed an MQTT client certificate",
-            kSecAttrApplicationTag as String: Self.APPLICATION_TAG
+            kSecAttrApplicationTag as String: keyApplicationTag
         ]
         var err = SecItemAdd(addKeyAttrs as CFDictionary, nil)
         guard err == errSecSuccess || err == errSecDuplicateItem else {
@@ -100,7 +106,7 @@ class MqttClient : RCTEventEmitter {
         let addCertAttrs: [String: Any] = [
             kSecClass as String: kSecClassCertificate,
             kSecValueRef as String: cert,
-            kSecAttrLabel as String: "Certificate for an MQTT client"
+            kSecAttrLabel as String: certLabel
         ]
         err = SecItemAdd(addCertAttrs as CFDictionary, nil)
         guard err == errSecSuccess || err == errSecDuplicateItem else {
@@ -113,7 +119,7 @@ class MqttClient : RCTEventEmitter {
         let addCaCertAttrs: [String: Any] = [
             kSecClass as String: kSecClassCertificate,
             kSecValueRef as String: caCert,
-            kSecAttrLabel as String: Self.ROOT_CERTIFICATE_ATTR_LABEL
+            kSecAttrLabel as String: caCertLabel
         ]
         err = SecItemAdd(addCaCertAttrs as CFDictionary, nil)
         guard err == errSecSuccess || err == errSecDuplicateItem else {
@@ -123,12 +129,11 @@ class MqttClient : RCTEventEmitter {
         // obtains the identity
         let queryIdentityAttrs: [String: Any] = [
             kSecClass as String: kSecClassIdentity,
-            kSecAttrApplicationTag as String: Self.APPLICATION_TAG,
+            kSecAttrApplicationTag as String: keyApplicationTag,
             kSecReturnRef as String: true
         ]
-        let cfDict = queryIdentityAttrs as CFDictionary
         var identity: CFTypeRef?
-        err = SecItemCopyMatching(cfDict, &identity)
+        err = SecItemCopyMatching(queryIdentityAttrs as CFDictionary, &identity)
         guard err == errSecSuccess else {
             reject("INVALID_IDENTITY", "failed to query the keychain for the identity: \(err)", nil)
             return
@@ -142,45 +147,48 @@ class MqttClient : RCTEventEmitter {
         resolve(nil)
     }
 
-    // loads the identity from the key chain.
-    func loadIdentity() -> CFArray? {
-        // obtains the CA certificate
+    @objc(resetIdentity:resolve:reject:)
+    func resetIdentity(options: NSDictionary?, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) -> Void
+    {
+        let caCertLabel: String = RCTConvert.nsString(options?["caCertLabel"]) ?? Self.DEFAULT_CA_CERT_LABEL
+        let certLabel: String = RCTConvert.nsString(options?["certLabel"]) ?? Self.DEFAULT_CERT_LABEL
+        let keyApplicationTag: String = RCTConvert.nsString(options?["keyApplicationTag"]) ?? Self.DEFAULT_KEY_APPLICATION_TAG
+        // deletes a root certificate
         let queryCaCertAttrs: [String: Any] = [
             kSecClass as String: kSecClassCertificate,
-            kSecAttrLabel as String: Self.ROOT_CERTIFICATE_ATTR_LABEL,
-            kSecReturnRef as String: true
+            kSecAttrLabel as String: caCertLabel
         ]
-        var caCert: CFTypeRef?
-        var err = SecItemCopyMatching(queryCaCertAttrs as CFDictionary, &caCert)
-        guard err == errSecSuccess else {
-            os_log("MqttClient: failed to query the keychain for the root certificate: %s", "\(err)")
-            return nil
+        var err = SecItemDelete(queryCaCertAttrs as CFDictionary)
+        guard err == errSecSuccess || err == errSecItemNotFound else {
+            reject("ILLEGAL_STATE", "failed to delete a root certificate: \(err)", nil)
+            return
         }
-        guard CFGetTypeID(caCert) == SecCertificateGetTypeID() else {
-            os_log("MqttClient: failed to query the keychain for the root certificate: type ID mismatch")
-            return nil
-        }
-        // obtains the identity
-        let queryIdentityAttrs: [String: Any] = [
-            kSecClass as String: kSecClassIdentity,
-            kSecAttrApplicationTag as String: Self.APPLICATION_TAG,
-            kSecReturnRef as String: true
+        // deletes a client certificate
+        let queryCertAttrs: [String: Any] = [
+            kSecClass as String: kSecClassCertificate,
+            kSecAttrLabel as String: certLabel
         ]
-        var identity: CFTypeRef?
-        err = SecItemCopyMatching(queryIdentityAttrs as CFDictionary, &identity)
-        guard err == errSecSuccess else {
-            os_log("MqttClient: failed to query the keychain for the identity: %s", "\(err)")
-            return nil
+        err = SecItemDelete(queryCertAttrs as CFDictionary)
+        guard err == errSecSuccess || err == errSecItemNotFound else {
+            reject("ILLEGAL_STATE", "failed to delete a certificate: \(err)", nil)
+            return
         }
-        guard CFGetTypeID(identity) == SecIdentityGetTypeID() else {
-            os_log("MqttClient: failed to query the keychain for the identity: type ID mismatch")
-            return nil
+        // deletes a private key
+        let queryKeyAttrs: [String: Any] = [
+            kSecClass as String: kSecClassKey,
+            kSecAttrApplicationTag as String: keyApplicationTag
+        ]
+        err = SecItemDelete(queryKeyAttrs as CFDictionary)
+        guard err == errSecSuccess || err == errSecItemNotFound else {
+            reject("ILLEGAL_STATE", "failed to delete a private key: \(err)", nil)
+            return
         }
-        return [identity!, caCert!] as CFArray
+        resolve(nil)
     }
 
     func getIdentity() -> CFArray? {
-        return self.certArray ?? self.loadIdentity()
+        // default identity is no longer provided
+        return self.certArray
     }
 
     @objc(connect:resolve:reject:)

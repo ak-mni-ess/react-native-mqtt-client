@@ -227,6 +227,14 @@ export type KeyStoreOptions = {
    */
   caCertLabel?: string;
   /**
+   * Label associated with a certificate (iOS only).
+   *
+   * A default value is used if omitted.
+   *
+   * @member {string} certLabel
+   */
+  certLabel?: string;
+  /**
    * Application tag associated with a private key (iOS only).
    *
    * A default value is used if omitted.
