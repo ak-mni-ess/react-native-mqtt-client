@@ -145,18 +145,19 @@ class RNMqttClient(reactContext: ReactApplicationContext)
      * @param options
      *
      *   Options for the key store.
+     *   May be omitted.
      *
      * @param promise
      *
      *   Promise that is resolved when the identity is reset.
      */
     @ReactMethod
-    fun resetIdentity(options: ReadableMap, promise: Promise) {
+    fun resetIdentity(options: ReadableMap?, promise: Promise) {
         try {
             SSLSocketFactoryUtil.resetAndroidKeyStore(
-                options.getOptionalString("caCertAlias") ?:
+                options?.getOptionalString("caCertAlias") ?:
                     DEFAULT_CA_CERT_ALIAS,
-                options.getOptionalString("keyAlias") ?: DEFAULT_KEY_ALIAS
+                options?.getOptionalString("keyAlias") ?: DEFAULT_KEY_ALIAS
             )
             promise.resolve(null)
             return
@@ -166,6 +167,47 @@ class RNMqttClient(reactContext: ReactApplicationContext)
             return
         } catch (e: Exception) {
             Log.e(NAME, "failed to reset the identity", e)
+            promise.reject("INVALID_IDENTITY", e)
+            return
+        }
+    }
+
+    /**
+     * Returns whether an identity for connection is configured.
+     *
+     * `options` may have the following optional key-value pairs,
+     * - `ceCertAlias`: (`string`)
+     *   alias associated with a root certificate.
+     *   `DEFAULT_CA_CERT_ALIAS` if omitted.
+     * - `keyAlias`: (`string`)
+     *   alias associated with a private key.
+     *   `DEFAULT_KEY_ALIAS` if omitted.
+     *
+     * @param options
+     *
+     *   Options for the identity key store.
+     *   May be omitted.
+     *
+     * @param promise
+     *
+     *   Promise that is resolved when an identity is checked.
+     */
+    @ReactMethod
+    fun hasIdentity(options: ReadableMap?, promise: Promise) {
+        try {
+            val result = SSLSocketFactoryUtil.isAndroidKeyStoreConfigured(
+                options?.getOptionalString("caCertAlias") ?:
+                    DEFAULT_CA_CERT_ALIAS,
+                options?.getOptionalString("keyAlias") ?: DEFAULT_KEY_ALIAS
+            )
+            promise.resolve(result)
+            return
+        } catch (e: IllegalArgumentException) {
+            Log.e(NAME, "invalid key store options", e)
+            promise.reject("RANGE_ERROR", e)
+            return
+        } catch (e: Exception) {
+            Log.e(NAME, "failed to test the identity", e)
             promise.reject("INVALID_IDENTITY", e)
             return
         }

@@ -179,4 +179,34 @@ object SSLSocketFactoryUtil {
         keyStore.deleteEntry(caCertAlias)
         keyStore.deleteEntry(keyAlias)
     }
+
+    /**
+     * Returns whether a root certificate and a private key are stored in
+     * the Android key store.
+     *
+     * @param caCertAlias
+     *
+     *   Alias for a root certificate.
+     *
+     * @param keyAlias
+     *
+     *   Alias for a private key.
+     *
+     * @throws CertificateException
+     *
+     * @throws IOException
+     *
+     * @throws KeyStoreException
+     *
+     * @throws NoSuchAlgorithmException
+     */
+    fun isAndroidKeyStoreConfigured(
+            caCertAlias: String,
+            keyAlias: String): Boolean
+    {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore")
+        keyStore.load(null)
+        return keyStore.isCertificateEntry(caCertAlias) &&
+            keyStore.isKeyEntry(keyAlias)
+    }
 }
