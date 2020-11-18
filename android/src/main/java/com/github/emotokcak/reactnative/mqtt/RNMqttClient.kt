@@ -132,10 +132,48 @@ class RNMqttClient(reactContext: ReactApplicationContext)
     }
 
     /**
+     * Loads the identity stored in the Android key store.
+     *
+     * `options` may have the following optional key-value pairs,
+     * - `caCertAlias`: (`string`)
+     *   Alias associated with a root certificate to be loaded.
+     *   `DEFAULT_CA_CERT_ALIAS` if omitted.
+     * - `keyAlias`: (`string`)
+     *   Alias associated with a private key to be loaded.
+     *   `DEFAULT_KEY_ALIAS` if omitted.
+     *
+     * @param options
+     *
+     *   Options for the key store.
+     *   May be omitted.
+     *
+     * @param promise
+     *
+     *   Promise that is resolved when the identity is loaded.
+     */
+    @ReactMethod
+    fun loadIdentity(options: ReadableMap?, promise: Promise) {
+        try {
+            this.socketFactory =
+                SSLSocketFactoryUtil.createSocketFactoryFromAndroidKeyStore()
+            promise.resolve(null)
+            return
+        } catch (e: Exception) {
+            Log.e(
+                NAME,
+                "failed to load an identity from the Android key store",
+                e
+            )
+            promise.reject("INVALID_IDENTITY", e)
+            return
+        }
+    }
+
+    /**
      * Resets the identity stored in the key store.
      *
      * `options` may have the following optional key-value pairs,
-     * - `ceCertAlias`: (`string`)
+     * - `caCertAlias`: (`string`)
      *   alias associated with a root certificate to be cleared.
      *   `DEFAULT_CA_CERT_ALIAS` if omitted.
      * - `keyAlias`: (`string`)
@@ -216,24 +254,6 @@ class RNMqttClient(reactContext: ReactApplicationContext)
     }
 
     /**
-     * Returns a socket factory.
-     *
-     * @return
-     *
-     *   `SSLSocketFactory` to connect to an MQTT broker.
-     *   `null` if no socket factory is available.
-     */
-    private fun getSocketFactory(): SSLSocketFactory? {
-        try {
-            return this.socketFactory ?:
-                SSLSocketFactoryUtil.createSocketFactoryFromAndroidKeyStore()
-        } catch (e: Exception) {
-            Log.e(NAME, "failed to obtain an SSLSocketFactory", e)
-            return null
-        }
-    }
-
-    /**
      * Connects to an MQTT broker.
      *
      * The following key-value pairs have to be specified in `params`.
@@ -262,7 +282,7 @@ class RNMqttClient(reactContext: ReactApplicationContext)
             return
         }
         // obtains a socket factory
-        val socketFactory = this.getSocketFactory()
+        val socketFactory = this.socketFactory
         if (socketFactory == null) {
             promise.reject(
                 "ERROR_CONFIG",
