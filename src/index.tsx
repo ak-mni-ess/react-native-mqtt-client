@@ -85,6 +85,23 @@ export class MqttClient {
   }
 
   /**
+   * Returns whether an identity for connection is configured.
+   *
+   * @function hasIdentity
+   *
+   * @param options
+   *
+   *   Options for the identity key store.
+   *
+   * @return Promise<boolean>
+   *
+   *   Resolved when an identity is checked.
+   */
+  hasIdentity(options?: KeyStoreOptions): Promise<boolean> {
+    return MqttClientImpl.hasIdentity(options);
+  }
+
+  /**
    * Connects to an MQTT broker.
    *
    * @function connect
