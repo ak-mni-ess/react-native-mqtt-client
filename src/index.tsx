@@ -66,6 +66,23 @@ export class MqttClient {
   }
 
   /**
+   * Loads the identity stored in a device specific key store.
+   *
+   * @function loadIdentity
+   *
+   * @param options
+   *
+   *   Options for the identity key store.
+   *
+   * @return Promise<void>
+   *
+   *   Resolved when the identity is loaded.
+   */
+  loadIdentity(options?: KeyStoreOptions): Promise<void> {
+    return MqttClientImpl.loadIdentity(options);
+  }
+
+  /**
    * Resets the identity for connection.
    *
    * Certificates and a key stored in a device specific key store are cleared.
