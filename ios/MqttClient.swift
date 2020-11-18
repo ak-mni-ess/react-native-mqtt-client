@@ -186,6 +186,56 @@ class MqttClient : RCTEventEmitter {
         resolve(nil)
     }
 
+    @objc(isIdentityStored:resolve:reject:)
+    func isIdentityStored(options: NSDictionary?, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) -> Void
+    {
+        let caCertLabel: String = RCTConvert.nsString(options?["caCertLabel"]) ?? Self.DEFAULT_CA_CERT_LABEL
+        let keyApplicationTag: String = RCTConvert.nsString(options?["keyApplicationTag"]) ?? Self.DEFAULT_KEY_APPLICATION_TAG
+        // checks a root certificate
+        let queryCaCertAttrs: [String: Any] = [
+            kSecClass as String: kSecClassCertificate,
+            kSecAttrLabel as String: caCertLabel,
+            kSecReturnRef as String: true
+        ]
+        var caCertRef: CFTypeRef?
+        var err = SecItemCopyMatching(queryCaCertAttrs as CFDictionary, &caCertRef)
+        guard err == errSecSuccess || err == errSecItemNotFound else {
+            // an error other than not found
+            reject("INVALID_IDENTITY", "failed to query a root certificate: \(err)", nil)
+            return
+        }
+        guard err != errSecItemNotFound else {
+            resolve(false)
+            return
+        }
+        guard CFGetTypeID(caCertRef) == SecCertificateGetTypeID() else {
+            resolve(false)
+            return
+        }
+        // checks an identity
+        let queryIdentityAttrs: [String: Any] = [
+            kSecClass as String: kSecClassIdentity,
+            kSecAttrApplicationTag as String: keyApplicationTag,
+            kSecReturnRef as String: true
+        ]
+        var identityRef: CFTypeRef?
+        err = SecItemCopyMatching(queryIdentityAttrs as CFDictionary, &identityRef)
+        guard err == errSecSuccess || err == errSecItemNotFound else {
+            // an error other than not found
+            reject("INVALID_IDENTITY", "failed to query an identity: \(err)", nil)
+            return
+        }
+        guard err != errSecItemNotFound else {
+            resolve(false)
+            return
+        }
+        guard CFGetTypeID(identityRef) == SecIdentityGetTypeID() else {
+            resolve(false)
+            return
+        }
+        resolve(true)
+    }
+
     func getIdentity() -> CFArray? {
         // default identity is no longer provided
         return self.certArray
