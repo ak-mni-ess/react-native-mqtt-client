@@ -85,9 +85,10 @@ export class MqttClient {
   }
 
   /**
-   * Returns whether an identity for connection is configured.
+   * Returns whether an identity for connection is stored in a device specific
+   * key store.
    *
-   * @function hasIdentity
+   * @function isIdentityStored
    *
    * @param options
    *
@@ -95,10 +96,11 @@ export class MqttClient {
    *
    * @return Promise<boolean>
    *
-   *   Resolved when an identity is checked.
+   *   Resolved to whether the identity given by `options` is stored in
+   *   a device specific key store.
    */
-  hasIdentity(options?: KeyStoreOptions): Promise<boolean> {
-    return MqttClientImpl.hasIdentity(options);
+  isIdentityStored(options?: KeyStoreOptions): Promise<boolean> {
+    return MqttClientImpl.isIdentityStored(options);
   }
 
   /**
