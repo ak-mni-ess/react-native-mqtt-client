@@ -147,6 +147,47 @@ class MqttClient : RCTEventEmitter {
         resolve(nil)
     }
 
+    @objc(loadIdentity:resolve:reject:)
+    func loadIdentity(options: NSDictionary?, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) -> Void
+    {
+        let caCertLabel: String = RCTConvert.nsString(options?["caCertLabel"]) ?? Self.DEFAULT_CA_CERT_LABEL
+        let keyApplicationTag: String = RCTConvert.nsString(options?["keyApplicationTag"]) ?? Self.DEFAULT_KEY_APPLICATION_TAG
+        // queries a root certificate
+        let queryCaCertAttrs: [String: Any] = [
+            kSecClass as String: kSecClassCertificate,
+            kSecAttrLabel as String: caCertLabel,
+            kSecReturnRef as String: true
+        ]
+        var caCert: CFTypeRef?
+        var err = SecItemCopyMatching(queryCaCertAttrs as CFDictionary, &caCert)
+        guard err == errSecSuccess else {
+            reject("INVALID_IDENTITY", "failed to query a root certificate: \(err)", nil)
+            return
+        }
+        guard CFGetTypeID(caCert) == SecCertificateGetTypeID() else {
+            reject("INVALID_IDENTITY", "failed to query a root certificate: type mismatch", nil)
+            return
+        }
+        // queries an identity
+        let queryIdentityAttrs: [String: Any] = [
+            kSecClass as String: kSecClassIdentity,
+            kSecAttrApplicationTag as String: keyApplicationTag,
+            kSecReturnRef as String: true
+        ]
+        var identity: CFTypeRef?
+        err = SecItemCopyMatching(queryIdentityAttrs as CFDictionary, &identity)
+        guard err == errSecSuccess else {
+            reject("INVALID_IDENTITY", "failed to query an identity: \(err)", nil)
+            return
+        }
+        guard CFGetTypeID(identity) == SecIdentityGetTypeID() else {
+            reject("INVALID_IDENTITY", "failed to query an identity: type mismatch", nil)
+            return
+        }
+        self.certArray = [identity!, caCert!] as CFArray
+        resolve(nil)
+    }
+
     @objc(resetIdentity:resolve:reject:)
     func resetIdentity(options: NSDictionary?, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) -> Void
     {
@@ -183,6 +224,7 @@ class MqttClient : RCTEventEmitter {
             reject("ILLEGAL_STATE", "failed to delete a private key: \(err)", nil)
             return
         }
+        self.certArray = nil
         resolve(nil)
     }
 
@@ -236,15 +278,10 @@ class MqttClient : RCTEventEmitter {
         resolve(true)
     }
 
-    func getIdentity() -> CFArray? {
-        // default identity is no longer provided
-        return self.certArray
-    }
-
     @objc(connect:resolve:reject:)
     func connect(params: NSDictionary, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) -> Void
     {
-        guard let certArray = self.getIdentity() else {
+        guard let certArray = self.certArray else {
             reject("ERROR_CONFIG", "no identity is configured", nil)
             return
         }
