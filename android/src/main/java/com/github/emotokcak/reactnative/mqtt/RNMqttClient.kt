@@ -197,6 +197,7 @@ class RNMqttClient(reactContext: ReactApplicationContext)
                     DEFAULT_CA_CERT_ALIAS,
                 options?.getOptionalString("keyAlias") ?: DEFAULT_KEY_ALIAS
             )
+            this.socketFactory = null
             promise.resolve(null)
             return
         } catch (e: IllegalArgumentException) {
