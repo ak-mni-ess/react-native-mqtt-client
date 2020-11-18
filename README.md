@@ -21,7 +21,7 @@ This library wraps the following libraries,
 ## Installation
 
 ```sh
-npm install git+https://github.com/emoto-kc-ak/react-native-mqtt-client.git
+npm install --save git+https://github.com/emoto-kc-ak/react-native-mqtt-client.git#v0.1.0
 ```
 
 ## Usage
