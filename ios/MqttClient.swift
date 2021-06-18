@@ -310,7 +310,7 @@ class MqttClient : RCTEventEmitter {
     }
 
     // https://stackoverflow.com/a/38161889
-    func invalidate() -> Void {
+    override func invalidate() -> Void {
         os_log("MqttClient: invalidating")
         self.disconnect()
     }
