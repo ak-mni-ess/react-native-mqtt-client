@@ -192,8 +192,8 @@ export class MqttClient {
    *
    * @function removeListener
    */
-  removeListener(eventName: string, listener: ListenerFunction) {
-    eventBridge.removeListener(eventName, listener);
+  removeListener(eventName: string) {
+    eventBridge.removeAllListeners(eventName);
   }
 }
 
